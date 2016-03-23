@@ -10,7 +10,7 @@ class ThresholdDetector():
 
     def __init__(self, chunk=512, audio_format='paInt16', channels=1, volume_threshold=None,
                  time_threshold=2.5, frames=1024, recording_sample=0.25):
-        """
+        """ initialize the detector
         """
         self.chunk                  = chunk
         self.format                 = getattr(pyaudio, audio_format)
@@ -29,7 +29,8 @@ class ThresholdDetector():
             self.set_volume_threshold()
 
     def set_volume_threshold(self, test_time=5, multiplier=1.3):
-        """
+        """ listens to sound for 5 seconds and then sets volume threshold
+            to slightly more than the 3rd highest recorded volume
         """
         sys.stdout.flush()
         sys.stdout.write('3\n')
@@ -94,16 +95,16 @@ class ThresholdDetector():
             self.create_stream()
 
     def get_volume(self, ):
-        """ reads sample data and get volume
+        """ reads sample data and calculates volume
         """
         self.test_and_restart_stream()
-        volume = []
+        volumes = []
         iterations = int(self.device['defaultSampleRate'] / self.chunk * self.recording_sample)
         
         for _ in xrange(0, iterations):
             data = self.stream.read(self.chunk)
-            volume.append(audioop.rms(data, 2))
-        return sum(volume) / len(volume)
+            volumes.append(audioop.rms(data, 2))
+        return sum(volumes) / len(volumes)
 
     def detect_volume_threshold(self, average):
         """ check if the volume is greater than the threshold
@@ -111,7 +112,7 @@ class ThresholdDetector():
         return average < self.volume_threshold
 
     def volume_threshold_detection(self, end_time=None):
-        """
+        """ Prints an alert when above the volume threshold
         """
         if end_time is None:
             end_time = time.time() + 3600
@@ -119,29 +120,31 @@ class ThresholdDetector():
             sys.stdout.flush()
             average = self.get_volume()
             is_below_threshold = self.detect_volume_threshold(average)
-            if not self.alerted_threshold and is_below_threshold:
+            if is_below_threshold:
                 self.stdout('Threshold detected!')
-                self.alerted_threshold = True
-            elif not is_below_threshold:
-                self.alerted_threshold = False
 
 
 
     def detect_time_threshold(self, ):
+        """ detects if above the time threshold
+        """
         if self.threshold_timestamp:
             return time.time() - self.threshold_timestamp > self.time_threshold
         return False
 
     def stdout(self, string):
+        """ prints in a way node will detect
+        """
         sys.stdout.flush()
         sys.stdout.write(string)
 
     def timed_volume_threshold_detection(self, end_time=None):
-        """ start the silence detector
+        """ alerts once time and volume thresholds are exceeded
         """
         if end_time is None:
             end_time = time.time() + 3600
-        while end_time > time.time():
+        # while end_time > time.time():
+        while True:
             average = self.get_volume()
             is_below_threshold = self.detect_volume_threshold(average)
             above_time_threshold = self.detect_time_threshold()

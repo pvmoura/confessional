@@ -5,6 +5,7 @@ var speech = watson.speech_to_text({
   version: 'v1'
 });
 var fs = require('fs');
+// var filename = './transcription/testAudio.flac';
 var filename = 'recording.flac';
 //var stream = fs.createReadStream(filename);
 var recognizeStream = speech.createRecognizeStream({

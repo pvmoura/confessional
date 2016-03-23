@@ -1,5 +1,5 @@
 import unittest
-from silence_detector import ThresholdDetector
+from threshold_detector import ThresholdDetector
 import time
 
 class SimpleTestCase(unittest.TestCase):
