@@ -30,6 +30,7 @@ recognizeStream.on('results', function (data) {
   if (results[0].final === true) {
     try {
       alternatives = results[0].alternatives[0];
+      transcript.write(alternatives.transcript);
       if (alternatives.confidence > 0.75) {
         console.log(alternatives.transcript, alternatives.confidence);
       } else {
