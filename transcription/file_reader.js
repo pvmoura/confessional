@@ -1,9 +1,12 @@
 var fs = require('fs');
-
+var EventEmitter = require('events');
+module.exports = new EventEmitter();
 module.exports.readFile = function (filename, stream, intervalTime) {
   intervalTime = intervalTime || 250;
+  var error = { message: 'need filename' };
   if (typeof filename !== 'string') {
-    console.log('error', { message: 'need filename' });
+    console.log('error', error);
+    module.exports.emit('error', error);
     return;
   }
   fs.open(filename, 'r', function (err, fd) {
@@ -37,7 +40,7 @@ module.exports.readFile = function (filename, stream, intervalTime) {
     }
 
 
-    if (err) console.log('error', err);
+    if (err) module.exports.emit('error', err); //console.log('error', err);
     else {
       updateEssentials(0);
       intervalObj = setInterval(function () {
@@ -49,6 +52,7 @@ module.exports.readFile = function (filename, stream, intervalTime) {
           fs.read(fd, buffer, 0, length, currentPos, function (err, bytesRead, buffer) {
             if (err) console.log('error', err);
             else {
+              module.exports.emit('data', buffer);
               stream.write(buffer);
               updateEssentials(currentPos + length);
             }

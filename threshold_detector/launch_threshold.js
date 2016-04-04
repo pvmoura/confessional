@@ -15,5 +15,5 @@ silences.stdout.on('data', function (data) {
 });
 
 silences.on('error', function (err) {
-	module.exports.emit('error');
+	module.exports.emit('error', err);
 });

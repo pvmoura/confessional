@@ -1,1 +1,0 @@
-var require('watson_transcriber.js');

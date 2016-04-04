@@ -8,6 +8,11 @@ tags = ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'
 
 tag_synsets = map(lambda word: wn.synsets(word), tags)
 
+def histogram(words):
+	hist = {}
+	for word in words: hist[word] = hist.get(word, 0) + 1
+	return hist
+
 while True:
 	sys.stdout.flush()
 	test_word = raw_input().strip()
