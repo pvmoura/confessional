@@ -35,7 +35,7 @@ var state = {
 	nonSemanticCats: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'semantic', 'staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'],
 	followUp: null,
 	questionsAsked: [],
-	nextCategory: null,
+	nextCategory: [],
 	usedCats: [],
 	currTrans: [],
 	silenceThreshold: null
@@ -56,8 +56,8 @@ function playQuestion(filename) {
 	var play = exec('./first_pass_ask.py', [filename]);
 	play.on('end', function () {
 		state.questionTimeStamps.push(Date.now());
-		launchSilences(state.silenceThreshold);
-		launchRec();
+		//launchSilences(state.silenceThreshold);
+		//launchRec();
 	});
 	play.on('error', function(err) {
 		console.log('playing error', err);
@@ -84,6 +84,10 @@ function pickFromQuestionArray(cat, semantic, followUp) {
 	var filteredArray = filter(cat);
 	var arrLen = filteredArray.length;
 	var question = filteredArray[parseInt(Math.random()*arrLen, 10)];
+	// if (typeof question === 'undefined')
+	console.log(question ? question[0] : "No question", cat, semantic, followUp);
+	if (typeof question === 'undefined')
+		pickQuestion();
 	if (question[2] === 'hardfollow') {
 		for (var i = 0; i < questions.length; i++) {
 			if (question[3] === questions[i][1]) {
@@ -118,9 +122,10 @@ function decideProceduralCat () {
 	} else if (diff < 10000 || state.hasWarmedUp < 2) {
 		state.hasWarmedUp += 1;
 		return parseInt(Date.now(), 10) % 2 === 0 ? 'warmup' : 'gettingwarmer';
-	} else if (diff < 20000) {
-		return 'aboutyou';
-	} else {
+	} //else if (diff < 2000) {
+	//	return 'aboutyou';
+//	}
+	 else {
 		return 'semantic';
 	}
 }
@@ -140,7 +145,23 @@ function pickQuestion () {
 			question = pickFromQuestionArray(category, false);
 		} else {
 			// pick a semantic category, for now just randomly
-			category = state.nextCategory;
+			counts = {};
+			state.nextCategory.map(function (elem, arr) {
+				if (typeof counts[elem] === 'undefined')
+					counts[elem] = 0;
+				counts[elem]++;
+			});
+			topCount = null, topCat = null;
+			for (var key in counts) {
+				if (counts.hasOwnProperty(key)) {
+					if (counts[key] > topCount) {
+						topCat = key;
+						topCount = counts[key];
+					}
+				}
+			}
+			category = topCat;
+			console.log(state.nextCategory, category, "HELLO");
 			if (!category) {
 				availCats = state.semanticCats.filter(function (elem, i) {
 					return state.usedCats.indexOf(elem) === -1;
@@ -163,7 +184,7 @@ function pickQuestion () {
 	question_order.write(question[1] + ' ' + question[5] + '\n');
 	state.questionsAsked.push(question[1]);
 	playQuestion(question[1]);
-	state.nextCategory = null;
+	state.nextCategory = [];
 	state.currTrans = [];
 }
 
@@ -193,8 +214,8 @@ function launchSilences(threshold, duration) {
 		} else if (strData.indexOf('Threshold detected') !== -1) {
 			console.log("THERE WAS A SILENCE");
 			// kill recorder
-			rec.kill();
-			silences.kill();
+			//rec.kill();
+			//silences.kill();
 			pickQuestion();
 
 			tone_analyzer.tone({ text: state.transcripts.join('') },
@@ -221,7 +242,8 @@ function launchSilences(threshold, duration) {
 	});
 }
 
-readQuestions("/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv");
+//readQuestions("/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv");
+readQuestions();
 launchSilences();
 console.log('testing silence threshold, please be quiet');
 function launchRec() {
@@ -246,7 +268,7 @@ classifier.stdout.on('data', function (data) {
 		console.log("NOT ENOUGH INFO TO CLASSIFY");
 	} else {
 		console.log("I THINK THE NEXT CATEOGRY SHOULD BE: ", data);
-		state.nextCategory = data;
+		state.nextCategory.push(data);
 	}
 });
 

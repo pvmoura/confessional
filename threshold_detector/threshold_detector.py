@@ -9,7 +9,7 @@ class ThresholdDetector():
     p = pyaudio.PyAudio()
 
     def __init__(self, chunk=512, audio_format='paInt16', channels=1, volume_threshold=None,
-                 time_threshold=2.5, frames=1024, recording_sample=0.25):
+                 time_threshold=3.5, frames=1024, recording_sample=0.25):
         """ initialize the detector
         """
         self.chunk                  = chunk
@@ -28,7 +28,7 @@ class ThresholdDetector():
         if volume_threshold is None:
             self.set_volume_threshold()
 
-    def set_volume_threshold(self, test_time=5, multiplier=4):
+    def set_volume_threshold(self, test_time=5, multiplier=2):
         """ listens to sound for 5 seconds and then sets volume threshold
             to slightly more than the 3rd highest recorded volume
         """

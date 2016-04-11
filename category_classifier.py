@@ -1,5 +1,4 @@
-#! /usr/bin/python
-
+#! /usr/local/bin/python 
 import nltk
 import csv
 import os
