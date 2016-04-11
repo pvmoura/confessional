@@ -7,9 +7,10 @@ var spawn = require('child_process').spawn;
 var exec = require('child_process').execFile;
 var filename = 'recording.flac';
 var rec;
-var silences = exec('./threshold_detector/threshold_detector.py');
+var silences;
 var watson = require('watson-developer-cloud');
 var csv = require('ya-csv');
+var classifier = exec('./category_classifier.py');
 var tone_analyzer = watson.tone_analyzer({
   password: 'wPk4cIsEd3JV',
   username: '5f1cfb19-70be-4a78-ac9e-bc1e3f616687',
@@ -33,7 +34,11 @@ var state = {
 	proceduralCat: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'semantic'],
 	nonSemanticCats: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'semantic', 'staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'],
 	followUp: null,
-	questionsAsked: []
+	questionsAsked: [],
+	nextCategory: null,
+	usedCats: [],
+	currTrans: [],
+	silenceThreshold: null
 };
 function readQuestions (filename) {
 	if (typeof filename === 'undefined')
@@ -51,7 +56,14 @@ function playQuestion(filename) {
 	var play = exec('./first_pass_ask.py', [filename]);
 	play.on('end', function () {
 		state.questionTimeStamps.push(Date.now());
+		launchSilences(state.silenceThreshold);
+		launchRec();
 	});
+	play.on('error', function(err) {
+		console.log('playing error', err);
+		// launchSilences(state.silenceThreshold);
+		// launchRec();
+	})
 }
 
 function filterNonSemantic(cat) {
@@ -118,16 +130,24 @@ function decideProceduralCat () {
 function pickQuestion () {
 	var now = Date.now();
 	var diff = now - state.startTime;
+	var availCats = [];
 	// console.log(state.transcripts.join(''));
 	console.log(state.followUp);
 	if (state.followUp === null) {
 		category = decideProceduralCat();
 		// console.log(category);
 		if (category !== 'semantic') {
-			// pick a semantic category, for now just randomly
 			question = pickFromQuestionArray(category, false);
 		} else {
-			category = state.semanticCats[parseInt(Math.random() * 8, 10)]
+			// pick a semantic category, for now just randomly
+			category = state.nextCategory;
+			if (!category) {
+				availCats = state.semanticCats.filter(function (elem, i) {
+					return state.usedCats.indexOf(elem) === -1;
+				});
+				category = availCats[parseInt(Math.random() * 8, 10)];
+			}
+			state.usedCats.push(category);
 			question = pickFromQuestionArray(category, true);
 		}
 		state.catsAsked.push(category);
@@ -143,66 +163,92 @@ function pickQuestion () {
 	question_order.write(question[1] + ' ' + question[5] + '\n');
 	state.questionsAsked.push(question[1]);
 	playQuestion(question[1]);
+	state.nextCategory = null;
+	state.currTrans = [];
 }
 
-readQuestions()
+function launchSilences(threshold, duration) {
+	var options = [];
+	if (threshold) {
+		if (typeof duration === 'undefined')
+			duration = "";
+		options = [threshold, duration];
+	}
+	silences = exec('./threshold_detector/threshold_detector.py', options);
+	silences.stdout.on('data', function (data) {
+		// console.log(data);
+		var strData = data.toString();
+		if (strData.indexOf('volume threshold set at:') !== -1) {
+			launchRec();
+			console.log('silence set at', strData);
+			state.silenceThreshold = Number(strData.substr(24));
+			console.log('starting recorder.....');
+
+			setTimeout(function () {
+				fr.readFile(filename, watson_transcriber.stream);
+				pickQuestion();
+				console.log('recording started');
+				console.log('sending to Watson');
+			}, 1000);
+		} else if (strData.indexOf('Threshold detected') !== -1) {
+			console.log("THERE WAS A SILENCE");
+			// kill recorder
+			rec.kill();
+			silences.kill();
+			pickQuestion();
+
+			tone_analyzer.tone({ text: state.transcripts.join('') },
+			 function(err, tone) {
+			    if (err)
+			      console.log(err);
+			    else {
+
+			      		// console.log(JSON.stringify(tone, null, 2));
+			      		state.tones.push(tone)
+			  		}
+			});
+
+			// rec.kill();
+
+		} else if (strData.indexOf('Threshold time: ') !== -1) {
+			state.silences.push(Number(strData.slice(16)));
+		}
+	});
+
+	silences.stderr.on('data', function (err) {
+		console.log('error', err);
+
+	});
+}
+
+readQuestions("/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv");
+launchSilences();
 console.log('testing silence threshold, please be quiet');
 function launchRec() {
 	rec = exec('./s.sh');
 };
 
-silences.stdout.on('data', function (data) {
-	// console.log(data);
-	var strData = data.toString();
-	if (strData.indexOf('volume threshold set') !== -1) {
-		launchRec();
-		console.log('silence set at', strData);
-		console.log('starting recorder.....');
 
-		setTimeout(function () {
-			fr.readFile(filename, watson_transcriber.stream);
-			pickQuestion();
-			console.log('recording started');
-			console.log('sending to Watson');
-		}, 1000);
-	} else if (strData.indexOf('Threshold detected') !== -1) {
-		console.log("THERE WAS A SILENCE");
-		// kill recorder
-		rec.kill();
-		pickQuestion();
+// silences.on('end', function () {
+// 	var questionThreshold = exec('./threshold_detector/threshold_detector.py', [250]);
+// 	questionThreshold.stdout.on('data', function(data) {
+// 		if (strData.indexOf('Threshold detected') !== -1) {
+// 			// stop question
+// 		}
+// 	});
+// });
 
-		tone_analyzer.tone({ text: state.transcripts.join('') },
-		 function(err, tone) {
-		    if (err)
-		      console.log(err);
-		    else {
-
-		      		// console.log(JSON.stringify(tone, null, 2));
-		      		state.tones.push(tone)
-		  		}
-		});
-
-		// rec.kill();
-
-		// silences.kill();
-	} else if (strData.indexOf('Threshold time: ') !== -1) {
-		state.silences.push(Number(strData.slice(16)));
+classifier.stdout.on('data', function (data) {
+	data = data.trim();
+	if (data === 'ready') {
+		console.log("CLASSIFIER READY");
+	} else if (data === 'default') {
+		console.log("NOT ENOUGH INFO TO CLASSIFY");
+	} else {
+		console.log("I THINK THE NEXT CATEOGRY SHOULD BE: ", data);
+		state.nextCategory = data;
 	}
 });
-
-silences.on('error', function (err) {
-	console.log('error');
-});
-
-silences.on('end', function () {
-	var questionThreshold = exec('./threshold_detector/threshold_detector.py', [250]);
-	questionThreshold.stdout.on('data', function(data) {
-		if (strData.indexOf('Threshold detected') !== -1) {
-			// stop question
-		}
-	});
-});
-
 
 // fr.on('data', function (data) {
 // 	watson.stream.write(data);
@@ -230,7 +276,13 @@ silences.on('end', function () {
 
 watson_transcriber.on('transcriptData', function (data) {
 	var alternatives = data.results[0].alternatives[0];
+	process.stdout.write(alternatives.transcript);
+	state.currTrans.push(alternatives.transcript);
 	state.transcripts.push(alternatives.transcript);
+	classifier.stdin.write(state.currTrans.join(' ') + "\n");
 	// process.stdout.write(alternatives.transcript);
 	transcription.write(alternatives.transcript);
+});
+watson_transcriber.on('watsonError', function (data) {
+	console.log("An error occurred!");
 });

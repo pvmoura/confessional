@@ -1,8 +1,9 @@
 <<COMMENT1
 rec -r 44100 -b 16 -c 1 -e signed-integer recording%1n.flac trim 0 00:10 : newfile : restart
 rec -r 44100 -b 16 recording%1n.flac silence 1 0.0 0.1% 1 0.0 0.1% : newfile : restart
-COMMENT1
 rm recording*.flac
+COMMENT1
+mv recording.flac files
 rec -r 44100 -b 16 recording.flac
 <<COMMENT1
 sox -p recording%1n.flac silence 1 0.50 0.1% 1 00:01 0.1% : newfile : restart
