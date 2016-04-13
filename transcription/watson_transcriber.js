@@ -1,8 +1,22 @@
+/*********************************************
+ *                                           *
+ *                                           *
+ *                                           *
+ *                                           * 
+ *                                           *
+ *                                           *
+ *                                           *
+ *                                           *
+ *                                           *
+ ********************************************/
+
+// load necessary libraries
 var watson = require('watson-developer-cloud');
 var fs = require('fs');
 var fr = require('./file_reader.js');
 var EE = require('events');
-module.exports=  new EE();
+
+// make speech-to-text object using nodejs watson library
 var speech = watson.speech_to_text({
   username: '25cfed28-d78a-43ba-8d29-210722248039',
   password: 'RJMxTuG5P1aQ',
@@ -15,20 +29,24 @@ var recognizeStream = speech.createRecognizeStream({
   continuous: true
 });
 var errorLogs = fs.createWriteStream('errors.log');
+
+// make this an event emitting module with the stream object
+module.exports=  new EE();
 module.exports.stream = recognizeStream;
-// fr.readFile('./transcription/testAudio.flac');
-// fr.on('data', function (data) {
-// 	recognizeStream.write(data);
-// });
+
 recognizeStream.on('error', function(error) {
 	var now = new Date();
-	errorLogs.write(now.toString() + ": " + error.toString());
+	errorLogs.write(now.toString() + ": " +  error.toString());
 	module.exports.emit('watsonError', error);
 });
 
+// Watson streams emit a "results" event when they have any result
+// from Watson, interim or final. Interim results have a final attribute
+// set to false and they provide a draft of Watson's transcription.
+// This function waits for a final result
 recognizeStream.on('results', function (data) {
-  var results = data ? data.results : null;
-  var alternatives;
+  var results = data ? data.results : null, alternatives;
+
   if (results && results.length > 0) {
     if (results[0].final === true) {
         alternatives = results[0].alternatives[0];

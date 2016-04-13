@@ -25,7 +25,7 @@ var state = {
 	silences: [],
 	tones: [],
 	startTime: Date.now(),
-	questionCats: ['', 'staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'],
+	questionCats: ['staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'],
 	semanticCats: ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
 	hasIntroed: false,
 	hasWarmedUp: 0,
@@ -38,7 +38,7 @@ var state = {
 	nextCategory: [],
 	usedCats: [],
 	currTrans: [],
-	silenceThreshold: null
+	silenceThreshold: null,
 };
 function readQuestions (filename) {
 	if (typeof filename === 'undefined')
@@ -50,6 +50,15 @@ function readQuestions (filename) {
 	reader.on('end', function() {
 		console.log("questions read in");
 	});
+}
+
+function timeSinceLastQuestion () {
+	var now = Date.now();
+	if (state.questionTimeStamps.length === 0)
+		return now - state.startTime;
+	else {
+		return now - state.questionTimeStamps[state.questionTimeStamps.length - 1];
+	}
 }
 
 function playQuestion(filename) {
@@ -84,19 +93,28 @@ function pickFromQuestionArray(cat, semantic, followUp) {
 	var filteredArray = filter(cat);
 	var arrLen = filteredArray.length;
 	var question = filteredArray[parseInt(Math.random()*arrLen, 10)];
+	var short, long;
 	// if (typeof question === 'undefined')
 	console.log(question ? question[0] : "No question", cat, semantic, followUp);
-	if (typeof question === 'undefined')
-		pickQuestion();
+
 	if (question[2] === 'hardfollow') {
-		for (var i = 0; i < questions.length; i++) {
-			if (question[3] === questions[i][1]) {
-				state.followUp = questions[i];
-				break;
-			}
-		}
+		state.followup = findQuestionByName(question[3]);
+	} else if (question[2] === 'length') {
+		short = findQuestionByName(question[3]);
+		long = findQuestionByName(question[4]);
+		state.followup = {short: short, long: long};
 	}
 	return question;
+}
+
+function findQuestionByName(name) {
+	if (name == undefined)
+		return null;
+	for (var i = 0; i < questions.length; i++) {
+		if (name === questions[i][1]) {
+			return questions[i];
+		}
+	}
 }
 
 // in general, for picking questions, a first question[5-7] can't be in questionCats & proceduralCats
@@ -131,14 +149,16 @@ function decideProceduralCat () {
 }
 
 
-
 function pickQuestion () {
 	var now = Date.now();
 	var diff = now - state.startTime;
 	var availCats = [];
+	var category;
 	// console.log(state.transcripts.join(''));
 	console.log(state.followUp);
-	if (state.followUp === null) {
+	if (diff >= 1680000) {
+		category = 'end';
+	} else if (state.followUp === null) {
 		category = decideProceduralCat();
 		// console.log(category);
 		if (category !== 'semantic') {
@@ -163,10 +183,11 @@ function pickQuestion () {
 			category = topCat;
 			console.log(state.nextCategory, category, "HELLO");
 			if (!category) {
+				// don't filter the available categories, possibly?
 				availCats = state.semanticCats.filter(function (elem, i) {
 					return state.usedCats.indexOf(elem) === -1;
 				});
-				category = availCats[parseInt(Math.random() * 8, 10)];
+				category = availCats[parseInt(Math.random() * availCats.length, 10)];
 			}
 			state.usedCats.push(category);
 			question = pickFromQuestionArray(category, true);
@@ -175,7 +196,13 @@ function pickQuestion () {
 		// state.questionTimeStamps.push(now);
 		// console.log(question);
 	} else {
-		question = state.followUp;
+		if (typeof state.followup === 'string')
+			question = state.followUp;
+		else {
+			question = timeSinceLastQuestion() < 8000 ? state.followup.short : state.followup.long;
+			if (!question)
+				question = state.followup.short ? state.followup.short : state.followup.long;
+		}
 		state.catsAsked.push(question[5]);
 		state.followUp = null;
 	}
