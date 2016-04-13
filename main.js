@@ -60,11 +60,13 @@ function timeSinceLastQuestion () {
 		return now - state.questionTimeStamps[state.questionTimeStamps.length - 1];
 	}
 }
-
-function playQuestion(filename) {
+var thisProcess = process;
+function playQuestion(filename, end) {
 	var play = exec('./first_pass_ask.py', [filename]);
 	play.on('end', function () {
 		state.questionTimeStamps.push(Date.now());
+		if (end)
+			thisProcess.kill(thisProcess.pid);
 		//launchSilences(state.silenceThreshold);
 		//launchRec();
 	});
@@ -93,16 +95,16 @@ function pickFromQuestionArray(cat, semantic, followUp) {
 	var filteredArray = filter(cat);
 	var arrLen = filteredArray.length;
 	var question = filteredArray[parseInt(Math.random()*arrLen, 10)];
-	var short, long;
+	var shortq, longq;
 	// if (typeof question === 'undefined')
 	console.log(question ? question[0] : "No question", cat, semantic, followUp);
 
 	if (question[2] === 'hardfollow') {
 		state.followup = findQuestionByName(question[3]);
 	} else if (question[2] === 'length') {
-		short = findQuestionByName(question[3]);
-		long = findQuestionByName(question[4]);
-		state.followup = {short: short, long: long};
+		shortq = findQuestionByName(question[3]);
+		longq = findQuestionByName(question[4]);
+		state.followup = {short: shortq, long: longq};
 	}
 	return question;
 }
@@ -148,6 +150,13 @@ function decideProceduralCat () {
 	}
 }
 
+function findEnd() {
+	var filtered = questions.filter(function (elem) {
+		return elem[1] === 'end2';
+	});
+	console.log(filtered);
+	return filtered[0];
+}
 
 function pickQuestion () {
 	var now = Date.now();
@@ -156,8 +165,9 @@ function pickQuestion () {
 	var category;
 	// console.log(state.transcripts.join(''));
 	console.log(state.followUp);
-	if (diff >= 1680000) {
-		category = 'end';
+	if (diff >= 170000) {
+		playQuestion(findEnd()[1], true);
+		return;
 	} else if (state.followUp === null) {
 		category = decideProceduralCat();
 		// console.log(category);
@@ -207,7 +217,7 @@ function pickQuestion () {
 		state.followUp = null;
 	}
 
-	console.log(question[1], question[5], question);
+	console.log(question[1], question[5], question, state);
 	question_order.write(question[1] + ' ' + question[5] + '\n');
 	state.questionsAsked.push(question[1]);
 	playQuestion(question[1]);

@@ -28,7 +28,7 @@ class ThresholdDetector():
         if volume_threshold is None:
             self.set_volume_threshold()
 
-    def set_volume_threshold(self, test_time=5, multiplier=2):
+    def set_volume_threshold(self, test_time=5, multiplier=3):
         """ listens to sound for 5 seconds and then sets volume threshold
             to slightly more than the 3rd highest recorded volume
         """
@@ -148,7 +148,7 @@ class ThresholdDetector():
             average = self.get_volume()
             is_below_threshold = self.detect_volume_threshold(average)
             above_time_threshold = self.detect_time_threshold()
-            self.stdout(str(average))
+            self.stdout(str(average) + '\n')
             if is_below_threshold and above_time_threshold and not self.alerted_threshold:
                 self.stdout('Threshold detected!\n')
                 self.alerted_threshold = True
