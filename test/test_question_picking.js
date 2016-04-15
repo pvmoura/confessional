@@ -1,5 +1,9 @@
 var qp = require('../question_picking.js');
+var wt = require('../transcription/watson_transcriber.js');
+
+var fs = require('fs');
 var assert = require('assert');
+
 describe('questionPicking', function () {
 	var filename = '/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv';
 	var questionsArray = [];
@@ -73,3 +77,39 @@ describe('questionPicking', function () {
 		});
 	});
 });
+
+describe('watson_transcriber', function () {
+	describe('#stream', function () {
+		var audioFile = "testAudio.flac";
+
+		it ('emits an error', function (done) {
+			wt.on('watsonError', function (error) {
+				assert.notEqual(typeof error, 'undefined');
+				done();
+			});
+			wt.stream.write('An erroneous string where a buffers should be');
+			this.timeout(10000);
+		});
+
+		it ('emits results', function (done) {
+			wt.on('finalData', function (transcript) {
+				console.log(transcript);
+				assert.equal(transcript[0].alternatives[0].transcript.toLowerCase(), 'what do you wish your parents had done differently when you were growing up');
+				done();
+			});
+			fs.createReadStream(__dirname + '/' + audioFile).pipe(wt.stream);
+			this.timeout(10000);
+		});
+
+		it ('emits an end event', function (done) {
+			wt.on('watsonClose', function () {
+				assert.equal(1, 1);
+				done();
+			});
+			fs.createReadStream(__dirname + '/' + audioFile).pipe(wt.stream).stop();
+			this.timeout(10000);
+		})
+	});
+});
+
+

@@ -333,7 +333,7 @@ classifier.stdout.on('data', function (data) {
 //   }
 // });
 
-watson_transcriber.on('transcriptData', function (data) {
+watson_transcriber.on('finalData', function (data) {
 	var alternatives = data.results[0].alternatives[0];
 	process.stdout.write(alternatives.transcript);
 	state.currTrans.push(alternatives.transcript);

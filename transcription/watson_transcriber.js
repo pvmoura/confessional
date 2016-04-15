@@ -31,7 +31,7 @@ var recognizeStream = speech.createRecognizeStream({
 var errorLogs = fs.createWriteStream('errors.log');
 
 // make this an event emitting module with the stream object
-module.exports=  new EE();
+module.exports = new EE();
 module.exports.stream = recognizeStream;
 
 recognizeStream.on('error', function(error) {
@@ -49,8 +49,10 @@ recognizeStream.on('results', function (data) {
 
   if (results && results.length > 0) {
     if (results[0].final === true) {
-        alternatives = results[0].alternatives[0];
-        module.exports.emit('transcriptData', data);
+      alternatives = results[0].alternatives[0];
+      module.exports.emit('finalData', data);
+    } else {
+      module.exports.emit('interimData', data);
     }
   } else {
     module.exports.emit('noData', results);
@@ -60,4 +62,5 @@ recognizeStream.on('results', function (data) {
 recognizeStream.on('end', function () {
 	var now = new Date();
 	process.stdout.write('Closed Watson connection at', now.toString());
+  module.exports.emit('watsonClose');
 })

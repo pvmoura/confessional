@@ -3,6 +3,7 @@ import nltk
 import csv
 import os
 import sys
+import re
 
 def category_features(words, training=False):
 	cat_words = set(words)
@@ -16,21 +17,23 @@ def category_features(words, training=False):
 		key = 'has({})'.format(word)
 		#features[key] = features.get(key, 0) + 1
 		features[key] = True
+	print features
 	return features
 
 def load_associations():
 	associations = {}
 	words = []
 	for root, dirList, fileList in os.walk('./files'):
+		print fileList, root
 		for f in fileList:
-			if 'txt' not in f:
+			if '.txt' not in f:
 				continue
 			concept = f.split(".txt")[0]
-			with open(root + "/" + f, "rU") as cf:
+			with open(root + "/" + f, "r") as cf:
 				for word in cf.readlines():
 					if not associations.get(concept):
 						associations[concept] = []
-					associations[concept].append(word.strip())
+					associations[concept].append(word.strip().lower())
 	return associations
 
 def make_test(string):
@@ -39,7 +42,8 @@ def make_test(string):
 if __name__ == "__main__":
 	associations = load_associations()
 	featureset = [ (category_features([ key ] + val, True), key) for key, val in associations.items() ]
-	c = nltk.NaiveBayesClassifier.train(featureset)
+	# c = nltk.NaiveBayesClassifier.train(featureset)
+	c = nltk.MaxentClassifier.train(featureset)
 	sys.stdout.flush()
 	sys.stdout.write('ready\n')
 	while True:
