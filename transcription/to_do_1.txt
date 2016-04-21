@@ -1,0 +1,15 @@
+Save previous categories
+If it can't detect a category in the current question, use an old category
+Why are there so many intro questions?
+If there's a hardfollow, but the same category is firing and the person has talked for awhile, maybe just default to the category
+Also, in the case of a hardfollow, remember categories from previous questions
+Silence detector should only start after question stops playing
+
+Booth statements:
+Booth1 - anytime
+Booth2 - anytime after 10 minutes
+Booth3 - anytime after 15 minutes
+
+Use a booth statement between transitions, especially if it is a random transition
+
+Endings 

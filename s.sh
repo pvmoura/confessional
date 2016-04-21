@@ -3,7 +3,7 @@ rec -r 44100 -b 16 -c 1 -e signed-integer recording%1n.flac trim 0 00:10 : newfi
 rec -r 44100 -b 16 recording%1n.flac silence 1 0.0 0.1% 1 0.0 0.1% : newfile : restart
 rm recording*.flac
 COMMENT1
-mv recording.flac files
+mv recording.flac oldFiles
 rec -r 44100 -b 16 recording.flac
 <<COMMENT1
 sox -p recording%1n.flac silence 1 0.50 0.1% 1 00:01 0.1% : newfile : restart

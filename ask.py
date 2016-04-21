@@ -6,7 +6,7 @@ import sys
 import random
 import os
 def play(filename):
-	DIR = "/Users/tpf2/Desktop/pop-up-confessional/script/files/audio files"
+	DIR = "/Users/tpf2/Dropbox/Current Booth Questions/programQuestions"
 	# files = os.listdir(DIR)
 	# filename = "/Users/tpf2/Desktop/pop-up-confessional/script/files/audio files/" + files[random.randint(0, len(files) - 1)]
 	filename = DIR + "/" + filename + ".wav"

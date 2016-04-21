@@ -1,0 +1,16 @@
+*
+watson: 3 seconds
+google: 1 seconds
+
+*
+watson: 4 seconds
+google: 0 seconds
+
+*
+watson: 2 seconds
+google: 1 seconds
+
+*
+watson: 3 seconds
+google: 0 seconds
+

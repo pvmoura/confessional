@@ -4,12 +4,13 @@ import pyaudio
 import audioop
 import sys
 import time
+import operator
 
 class ThresholdDetector():
     p = pyaudio.PyAudio()
 
     def __init__(self, chunk=512, audio_format='paInt16', channels=1, volume_threshold=None,
-                 time_threshold=3.5, frames=1024, recording_sample=0.25):
+                 time_threshold=3.5, frames=1024, recording_sample=0.25, op=operator.lt):
         """ initialize the detector
         """
         self.chunk                  = chunk
@@ -23,12 +24,13 @@ class ThresholdDetector():
         self.alerted_threshold      = False
         self.was_at_threshold       = False
         self.threshold_timestamp    = None
+        self.operator               = op
         self.set_device_info()
         self.create_stream()
         if volume_threshold is None:
             self.set_volume_threshold()
 
-    def set_volume_threshold(self, test_time=5, multiplier=3):
+    def set_volume_threshold(self, test_time=5, multiplier=2):
         """ listens to sound for 5 seconds and then sets volume threshold
             to slightly more than the 3rd highest recorded volume
         """
@@ -109,7 +111,7 @@ class ThresholdDetector():
     def detect_volume_threshold(self, average):
         """ check if the volume is greater than the threshold
         """
-        return average < self.volume_threshold
+        return self.operator(average, self.volume_threshold)
 
     def volume_threshold_detection(self, end_time=None):
         """ Prints an alert when above the volume threshold
@@ -168,8 +170,8 @@ class ThresholdDetector():
 if __name__ == "__main__":
     sys.stdout.flush()
     argv_len = len(sys.argv)
-    if argv_len > 3:
-        sys.stdout.write('Usage: ./silence_detector.py [volume_threshold] [time_threshold]')
+    if argv_len > 4:
+        sys.stdout.write('Usage: ./silence_detector.py [volume_threshold] [time_threshold] [operator]')
         sys.exit(1)
 
     options = {}
@@ -186,5 +188,12 @@ if __name__ == "__main__":
         except ValueError:
             sys.stdout.write('Please provide a number for the time threshold')
             sys.exit(1)
+    if argv_len > 3:
+        try:
+            options['op'] = operator.gt if sys.argv[3].lower() == 'gt' else operator.lt
+        except:
+            sys.stdout.write('Some error occurred')
+            sys.exit(1)
+
     sd = ThresholdDetector(**options)
     sd.timed_volume_threshold_detection()

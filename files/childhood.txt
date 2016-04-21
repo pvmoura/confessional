@@ -11,12 +11,15 @@ boyhood
 boys
 brother
 brothers
-bulliedbullies
+bullied
+bullies
 bully
-childchildren
+child
+children
 chores
 class
-classesdad
+classes
+dad
 daddy
 delinquent
 family
@@ -25,12 +28,14 @@ friends
 grades
 grandfather
 grandma
-grandmothergrandpa
+grandmother
+grandpa
 grandparents
 grew up
 grow up
 growing up
-grown upgrown ups
+grown up
+grown ups
 home
 hometown
 homework
@@ -38,7 +43,8 @@ house
 infancy
 infant
 juvenile
-kidkids
+kid
+kids
 lad
 ma
 mom
@@ -47,7 +53,8 @@ mother
 neighbor
 neighborhood
 neighbors
-nintendopa
+nintendo
+pa
 papa
 parents
 playground
@@ -59,19 +66,27 @@ pop
 puberty
 ran away
 recess
-run awayrunaway
+run away
+runaway
 was little
-was youngwas younger
+was young
+was younger
 were little
-were youngwere youngerschool
-schoolssiblingsiblings
+were young
+were younger
+school
+schools
+sibling
+siblings
 sister
 sisters
 sneak
 studied
 studies
 study
-studyingteacherteachers
+studying
+teacher
+teachers
 teen
 teens
 teenager
@@ -80,3 +95,4 @@ toddler
 toys
 videogames
 youth
+younger

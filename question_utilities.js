@@ -1,5 +1,6 @@
 var csv = require('ya-csv');
 var EE = require('events');
+var fs = require('fs');
 
 
 
@@ -17,6 +18,15 @@ module.exports.questionUtils = function (filename, categories, nonSemanticCats) 
 	});
 	reader.on('end', function() {
 		console.log("questions read in");
+		var audioFiles = fs.readdirSync("/Users/tpf2/Dropbox/Current Booth Questions/programQuestions");
+		console.log(audioFiles.length);
+		audioFiles = audioFiles.map(function (elem) {
+			return elem.toLowerCase();
+		});
+		questions = questions.filter(function (elem) {
+			return audioFiles.indexOf(elem[1].toLowerCase() + '.wav') !== -1;
+		});
+		console.log(questions.length);
 		// callback(questions);
 	});
 
@@ -77,6 +87,9 @@ module.exports.questionUtils = function (filename, categories, nonSemanticCats) 
 			return qs.filter(function (elem) {
 				return asked.indexOf(elem[1]) === -1;
 			});
+		},
+		allQuestions: function () {
+			return questions;
 		}
 
 	};

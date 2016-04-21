@@ -12,6 +12,8 @@ var watson = require('watson-developer-cloud');
 var csv = require('ya-csv');
 var qp = require('./question_picking.js');
 var classifier = exec('./category_classifier.py');
+// var player = require('play-sound')(opts={});
+var speaking;
 var tone_analyzer = watson.tone_analyzer({
   password: 'wPk4cIsEd3JV',
   username: '5f1cfb19-70be-4a78-ac9e-bc1e3f616687',
@@ -49,8 +51,10 @@ var state = {
 	currentCat: null
 };
 
-var utils = qus.questionUtils("/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv",
-							  state.categories, state.nonSemanticCats);
+
+// var questionsLoc = "/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv";
+var questionsLoc = "/Users/tpf2/Desktop/pedro/first_pass/questions.csv";
+var utils = qus.questionUtils(questionsLoc, state.categories, state.nonSemanticCats);
 
 var actions = {
 	end: getEnd,
@@ -69,7 +73,7 @@ function getEnd (options) {
 // currentQuestion, as per database is something like:
 // [text, filename, typefollow, followfile(default/short/yes), followfile(no/long), tag1, tag2, tag3, keywords]
 function getFollowUp (options) {
-	console.log(state.followUp, state.currentQuestion);
+	// console.log(state.followUp, state.currentQuestion);
 	var fupType = state.followUp || state.futypes.indexOf(state.currentQuestion[2]);
 	var followFile = 3;
 	switch (fupType) {
@@ -147,7 +151,7 @@ function getNewQuestion (category) {
 	var filtered = utils.filterByCategory(category);
 	if (state.questionsInCat === 0) {
 		filtered = utils.filterOutnotfirst(filtered);
-	} else if (state.questionsInCat === 2) {
+	} else if (state.questionsInCat >= 2) {
 		filtered = utils.filterByescapehatch(filtered);
 	}
 	filtered = utils.filterOutfollowup(filtered);
@@ -162,7 +166,7 @@ function pickRandomCat() {
 	return utils.pickQuestionFromArray(filtered);
 }
 
-function getSemantic (options) {
+function getSemantic (category) {
 	var counts = {}, category, topCount = null, topCat = null;
 	state.nextCategory.map(function (elem, arr) {
 		if (typeof counts[elem] === 'undefined')
@@ -172,22 +176,26 @@ function getSemantic (options) {
 	
 	for (var key in counts) {
 		if (counts.hasOwnProperty(key)) {
-			if (counts[key] > topCount) {
+			if (counts[key] > topCount && key !== 'zzzzzz') {
+				topCat = key;
+				topCount = counts[key];
+			} else if (topCat !== state.currentCat && state.questionsinCat >= 2) {
 				topCat = key;
 				topCount = counts[key];
 			}
 		}
 	}
-	category = topCat;
-	console.log(state.nextCategory, category, "HELLO");
+	category = typeof category === 'undefined' ? topCat : category;
+	// console.log(state.nextCategory, category, "HELLO");
 	if (category === 'zzzzzz') {
 		category = state.currentCat ? state.currentCat : pickRandomCat();
 	} else if (!category) {
 		// don't filter the available categories, possibly?
-		availCats = state.semanticCats.filter(function (elem, i) {
-			return state.usedCats.indexOf(elem) === -1;
-		});
-		category = availCats[parseInt(Math.random() * availCats.length, 10)];
+		// availCats = state.semanticCats.filter(function (elem, i) {
+		// 	return state.usedCats.indexOf(elem) === -1;
+		// });
+		// category = availCats[parseInt(Math.random() * availCats.length, 10)];
+		category = state.currentCat ? state.currentCat : pickRandomCat();
 	}
 	
 	return getNewQuestion(category);
@@ -211,9 +219,10 @@ function updateState (question) {
 		state.usedCats.push(question[5]);
 	} else
 		state.currentCat = null;
+	// console.log(oldCat, question[5]);
 	if (oldCat && oldCat === question[5])
 		state.questionsInCat++;
-	if (state.questionsInCat >= 3)
+	if (state.questionsInCat >= 2)
 		state.currentCat = null;
 }
 
@@ -227,29 +236,45 @@ function timeSinceLastQuestion () {
 }
 
 var thisProcess = process;
+
 function playQuestion(filename, end) {
-	var play = exec('./ask.py', [filename]);
-	play.on('end', function () {
-		state.questionTimeStamps.push(Date.now());
-		if (end)
-			thisProcess.kill(thisProcess.pid);
-		//launchSilences(state.silenceThreshold);
-		//launchRec();
-	});
-	play.on('error', function(err) {
-		console.log('playing error', err);
-		// launchSilences(state.silenceThreshold);
-		// launchRec();
+	// var play = spawn('./ask.py', [filename]);
+	console.log("playing...");
+	var dir = "/Users/tpf2/Dropbox/Current Booth Questions/programQuestions/";
+	player.play(dir + filename + ".wav", function (err){
+		if (err) console.log("ERROR WHILE PLAYING");
+		else {
+			state.questionTimeStamps.push(Date.now());
+			if (end)
+				thisProcess.kill(thisProcess.pid);
+			// silences.kill();
+			detectSpeaking();
+		}
 	})
+	silences.kill();
+	// play.on('close', function () {
+	// 	state.questionTimeStamps.push(Date.now());
+	// 	if (end)
+	// 		thisProcess.kill(thisProcess.pid);
+	// 	// silences.kill();
+	// 	detectSpeaking();
+	// 	//launchSilences(state.silenceThreshold);
+	// 	//launchRec();
+	// });
+	// play.on('error', function(err) {
+	// 	console.log('playing error', err);
+	// 	// launchSilences(state.silenceThreshold);
+	// 	// launchRec();
+	// });
 }
 
-function findEnd() {
-	var filtered = questions.filter(function (elem) {
-		return elem[1] === 'end2';
-	});
-	console.log(filtered);
-	return filtered[0];
-}
+// function findEnd() {
+// 	var filtered = questions.filter(function (elem) {
+// 		return elem[1] === 'end2';
+// 	});
+// 	console.log(filtered);
+// 	return filtered[0];
+// }
 
 function getDiff (start) {
 	start = start || state.startTime;
@@ -283,43 +308,66 @@ function pickQuestion () {
 	}
 	question = action();
 	if (!question) {
-		console.log('no question', question);
-		pickQuestion();
+		console.log('no question', question, state.currentCat);
+		question = actions['semantic'](pickRandomCat());
 		return;
 	}
 	console.log(question, 'question');
 	updateState(question);
-	playQuestion(question[1]);
+	// playQuestion(question[1]);
+}
+
+function detectSpeaking(threshold, duration) {
+
+	if (typeof threshold === 'undefined')
+		threshold = state.silenceThreshold || 40;
+	if (typeof duration === 'undefined')
+		duration = 4;
+	speaking = exec('./threshold_detector/threshold_detector.py', [threshold, duration, 'gt']);
+	speaking.stdout.on('data', function (data) {
+		strData = data.toString();
+		if (strData.indexOf('Threshold detected') !== -1) {
+			console.log("THERE WAS SPEAKING", state.silenceThreshold);
+			launchSilences(state.silenceThreshold);
+			speaking.kill();
+		}
+
+	});
+
 }
 
 function launchSilences(threshold, duration) {
 	var options = [];
 	if (threshold) {
 		if (typeof duration === 'undefined')
-			duration = "";
-		options = [threshold, duration];
+			options = [threshold];
+		else
+			options = [threshold, duration];
 	}
 	silences = exec('./threshold_detector/threshold_detector.py', options);
 	silences.stdout.on('data', function (data) {
 		// console.log(data);
 		var strData = data.toString();
 		if (strData.indexOf('volume threshold set at:') !== -1) {
+			console.log(data.toString(), 'here is the right thing', typeof strData, strData);
 			launchRec();
-			console.log('silence set at', strData);
-			state.silenceThreshold = Number(strData.substr(24));
-			console.log('starting recorder.....');
-
+			if (!state.silenceThreshold) {
+				strData = strData.replace(/[a-zA-Z :]/g, '');
+				state.silenceThreshold = Number(strData.split('\n')[0]);
+				console.log('starting recorder.....', state.silenceThreshold);
+			}
+			pickQuestion();
 			setTimeout(function () {
+				console.log(filename);
 				fr.readFile(filename, watson_transcriber.stream);
-				pickQuestion();
 				console.log('recording started');
 				console.log('sending to Watson');
-			}, 1000);
+			}, 1500);
 		} else if (strData.indexOf('Threshold detected') !== -1) {
 			console.log("THERE WAS A SILENCE");
 			// kill recorder
 			//rec.kill();
-			//silences.kill();
+			silences.kill();
 			pickQuestion();
 
 			// tone_analyzer.tone({ text: state.transcripts.join('') },
@@ -354,7 +402,13 @@ function launchSilences(threshold, duration) {
 launchSilences();
 console.log('testing silence threshold, please be quiet');
 function launchRec() {
-	rec = exec('./s.sh');
+	if (!rec || rec.connected) {
+		console.log('launching recorder');
+		rec = exec('./s.sh');
+		rec.stdout.on('data', function (data) {
+			process.stdout.write(data);
+		});
+	}
 };
 
 classifier.stdout.on('data', function (data) {
@@ -384,4 +438,6 @@ watson_transcriber.on('finalData', function (data) {
 
 watson_transcriber.on('watsonError', function (data) {
 	console.log("An error occurred!");
+	console.log(data);
+	console.log(data.message);
 });
