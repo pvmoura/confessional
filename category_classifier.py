@@ -1,4 +1,5 @@
-#! /usr/local/bin/python 
+#! /usr/bin/python 
+
 import nltk
 import csv
 import os
@@ -17,14 +18,12 @@ def category_features(words, training=False):
 		key = 'has({})'.format(word)
 		#features[key] = features.get(key, 0) + 1
 		features[key] = True
-	print features
 	return features
 
 def load_associations():
 	associations = {}
 	words = []
 	for root, dirList, fileList in os.walk('./files'):
-		print fileList, root
 		for f in fileList:
 			if '.txt' not in f:
 				continue
@@ -42,8 +41,8 @@ def make_test(string):
 if __name__ == "__main__":
 	associations = load_associations()
 	featureset = [ (category_features([ key ] + val, True), key) for key, val in associations.items() ]
-	# c = nltk.NaiveBayesClassifier.train(featureset)
-	c = nltk.MaxentClassifier.train(featureset)
+	c = nltk.NaiveBayesClassifier.train(featureset)
+	#c = nltk.MaxentClassifier.train(featureset)
 	sys.stdout.flush()
 	sys.stdout.write('ready\n')
 	while True:

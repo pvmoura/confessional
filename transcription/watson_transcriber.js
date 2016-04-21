@@ -37,6 +37,7 @@ module.exports.stream = recognizeStream;
 recognizeStream.on('error', function(error) {
 	var now = new Date();
 	errorLogs.write(now.toString() + ": " +  error.toString());
+  console.log(now.toString() + ": " + error.toString());
 	module.exports.emit('watsonError', error);
 });
 
@@ -49,6 +50,7 @@ recognizeStream.on('results', function (data) {
 
   if (results && results.length > 0) {
     if (results[0].final === true) {
+      console.log(results[0]);
       alternatives = results[0].alternatives[0];
       module.exports.emit('finalData', data);
     } else {
@@ -59,8 +61,8 @@ recognizeStream.on('results', function (data) {
   }
 });
 
-recognizeStream.on('end', function () {
+recognizeStream.on('close', function (code, reason) {
 	var now = new Date();
 	process.stdout.write('Closed Watson connection at', now.toString());
-  module.exports.emit('watsonClose');
-})
+  module.exports.emit('watsonClose', { code: code, reason: reason });
+});

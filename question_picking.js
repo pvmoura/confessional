@@ -20,8 +20,8 @@ module.exports.readQuestions = function (questionsArray, callback, filename) {
 	});
 }
 
-// start = 5 for semantic, 6 for nonSemantic
 
+// start = 5 for semantic, 6 for nonSemantic
 module.exports.filter = function (cat, questionsArray, questionsAsked, nonSemanticCats, start) {
 	return questionsArray.filter(function (elem) {
 		for (var i = start; i < 8; i++) {
@@ -51,13 +51,11 @@ module.exports.findHardFollow = function (questionsArray, question) {
 }
 
 
-module.exports.decideProceduralCat = function (startTime, hasIntroed, hasWarmedUp) {
-	var now = Date.now();
-	var diff = now - startTime;
+module.exports.decideProceduralCat = function (timeDiff, hasIntroed, hasWarmedUp) {
 	var category;
 	if (hasIntroed) {
 		category = 'intro';
-	} else if (diff < 10000 || hasWarmedUp < 2) {
+	} else if (timeDiff < 10000 || hasWarmedUp < 2) {
 		if (hasWarmedUp % 2 === 0)
 			category = 'warmup';
 		else

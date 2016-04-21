@@ -1,6 +1,7 @@
 var exec = require('child_process').execFile;
 var spawn = require('child_process').spawn;
-var classifier = spawn('./category_classifier.py',[], {stdio: [0,'pipe',2] });
+console.log(__dirname.replace('/oldCode', '') + '/category_classifier.py');
+var classifier = exec(__dirname.replace('/oldCode', '') + '/category_classifier.py',[], {stdio: ['pipe','pipe','pipe'] });
 
 classifier.stdout.on('data', function (data) {
   console.log(data, 'hello');
@@ -13,4 +14,13 @@ classifier.stdout.on('data', function (data) {
                     state.nextCategory = data;
                       }
                       });
-process.stdin.write("sex sex sex sex\n");
+
+classifier.stderr.on('data', function (err) {
+  console.log("CLASSIFIER ERROR", err);
+});
+
+classifier.on('error', function (err) {
+  console.log('error', err);
+});
+
+classifier.stdin.write(" hello\n");

@@ -1,6 +1,3 @@
-var qp = require('../question_picking.js');
-var wt = require('../transcription/watson_transcriber.js');
-
 var fs = require('fs');
 var assert = require('assert');
 
@@ -10,6 +7,7 @@ describe('questionPicking', function () {
 	var nonSemanticCats = ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'semantic', 'staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'];
 	var askedQuestions = ['lovelife', 'friendlovejealous'];
 	var category = 'love';
+	var qp = require('../question_picking.js');
 	describe('#readQuestions', function () {
 		var filename = __dirname + '/test.csv';
 
@@ -79,6 +77,8 @@ describe('questionPicking', function () {
 });
 
 describe('watson_transcriber', function () {
+	var wt = require('../transcription/watson_transcriber.js');
+
 	describe('#stream', function () {
 		var audioFile = "testAudio.flac";
 
@@ -87,28 +87,30 @@ describe('watson_transcriber', function () {
 				assert.notEqual(typeof error, 'undefined');
 				done();
 			});
-			wt.stream.write('An erroneous string where a buffers should be');
-			this.timeout(10000);
+			wt.stream.write('An erroneous string where buffers should be');
+			this.timeout(20000);
 		});
 
 		it ('emits results', function (done) {
-			wt.on('finalData', function (transcript) {
-				console.log(transcript);
-				assert.equal(transcript[0].alternatives[0].transcript.toLowerCase(), 'what do you wish your parents had done differently when you were growing up');
+			wt.on('finalData', function (data) {
+				assert.equal(data.results[0].alternatives[0].transcript.toLowerCase(), 'what do you wish your parents had done differently when you were growing up ');
 				done();
 			});
 			fs.createReadStream(__dirname + '/' + audioFile).pipe(wt.stream);
-			this.timeout(10000);
+			this.timeout(20000);
 		});
 
-		it ('emits an end event', function (done) {
-			wt.on('watsonClose', function () {
+		it ('emits a closing event', function (done) {
+			console.log("HELLO");
+			wt.on('watsonClose', function (obj) {
+				console.log(obj, 'in here');
 				assert.equal(1, 1);
 				done();
 			});
-			fs.createReadStream(__dirname + '/' + audioFile).pipe(wt.stream).stop();
-			this.timeout(10000);
-		})
+			// fs.createReadStream(__dirname + '/' + audioFile).pipe(wt.stream);
+			wt.stream.stop();
+			this.timeout(20000);
+		});
 	});
 });
 
