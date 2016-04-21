@@ -1,69 +1,89 @@
-wrong
-guilt
-guilty
-ruin
-ruined
+absorbed
+apologies
+apologize
+apologized
+apologizes
+apologizing
+apology
+arrest
+arrested
+bad person
+betray
+betrayal
+betrayed
+blew up
+blow up
+corrupt
+corrupted
+corruption
+critical
+criticism
+culpable
+culpability
+cycle
+cycles
 destroy
 destroyed
+error
+errors
+fault
+faulted
+faulting
+faults
+faulty
+feel bad
+felt bad
+flaw
+flawed
+flaws
+freak out
+freaked out
+fuck up
+fucked up
+guilt
+guilty
+horrible
+immoral
+injustice
 kill
+killed
+manslaughter
+mean
+mistake
+mistaken
+mistakes
+misunderstanding
 murder
-betray
-betrayed
-betrayal
+murdering
+murderous
+regret
+respect
+revenge
+robbed
+robbery
+robbing
+ruin
+ruined
+self loathing
+selfish
+should
+shouldn't
 stab
 stabbed
-revenge
-vengeance
+stabbing
 steal
 stealing
 stolen
 stole
-arrested
-arrest
-regret
-mean
-thoughtless
-cycle
-cycles
-mistake
-mistakes
-freak out
-freaked out
-blow up
-blew up
-unfair
-tragic
-tragedy
-selfish
-critical
-criticism
-fuck up
-fucked up
-apologize
-apologizes
-apologizing
-apologized
-apology
-apologies
-feel bad
-felt bad
-jail
-prison
-serving time
-serve time
-served time
-self loathing
-killed
-manslaughter
-robbery
-robbing
-robbed
-stabbing
-should
-shouldn't
-respect
-horrible
 terrible
+thoughtless
+tragedy
+tragic
+unconscionable
+unfair
+unjust
+vengeance
+vengeful
+vicious
 worst
-bad about
-absorbed
+wrong

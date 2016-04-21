@@ -103,7 +103,7 @@ function inIntro (timeDiff) {
 }
 
 function isShort() {
-	return true;
+	return timeSinceLastQuestion() < 60000;
 }
 
 function isYes() {
@@ -143,8 +143,23 @@ function getPersonality (options) {
 		questions = utils['filterBybooth3'];
 }
 
-function getNewQuestion () {
+function getNewQuestion (category) {
+	var filtered = utils.filterByCategory(category);
+	if (state.questionsInCat === 0) {
+		filtered = utils.filterOutnotfirst(filtered);
+	} else if (state.questionsInCat === 2) {
+		filtered = utils.filterByescapehatch(filtered);
+	}
+	filtered = utils.filterOutfollowup(filtered);
+	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
+	return utils.pickQuestionFromArray(filtered);
+}
 
+function pickRandomCat() {
+	var filtered = state.semanticCats.filter(function (elem) {
+		return state.usedCats.indexOf(elem) !== -1;
+	});
+	return utils.pickQuestionFromArray(filtered);
 }
 
 function getSemantic (options) {
@@ -166,7 +181,7 @@ function getSemantic (options) {
 	category = topCat;
 	console.log(state.nextCategory, category, "HELLO");
 	if (category === 'zzzzzz') {
-
+		category = state.currentCat ? state.currentCat : pickRandomCat();
 	} else if (!category) {
 		// don't filter the available categories, possibly?
 		availCats = state.semanticCats.filter(function (elem, i) {
@@ -175,7 +190,7 @@ function getSemantic (options) {
 		category = availCats[parseInt(Math.random() * availCats.length, 10)];
 	}
 	
-	question = pickFromQuestionArray(category, true);
+	return getNewQuestion(category);
 }
 
 function updateState (question) {
@@ -198,6 +213,8 @@ function updateState (question) {
 		state.currentCat = null;
 	if (oldCat && oldCat === question[5])
 		state.questionsInCat++;
+	if (state.questionsInCat >= 3)
+		state.currentCat = null;
 }
 
 function timeSinceLastQuestion () {
@@ -239,6 +256,10 @@ function getDiff (start) {
 	return Date.now() - start;
 }
 
+function boothQuestion () {
+	return false;
+}
+
 function pickQuestion () {
 	var diff = getDiff();
 	//var relevantData = gatherRelevantData(diff);
@@ -261,9 +282,14 @@ function pickQuestion () {
 		action = actions['semantic'];
 	}
 	question = action();
-	console.log(question);
+	if (!question) {
+		console.log('no question', question);
+		pickQuestion();
+		return;
+	}
+	console.log(question, 'question');
 	updateState(question);
-	// playQuestion(question[1]);
+	playQuestion(question[1]);
 }
 
 function launchSilences(threshold, duration) {
