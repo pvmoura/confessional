@@ -16,9 +16,10 @@ var fs = require('fs');
 var fr = require('./file_reader.js');
 var EE = require('events');
 
+console.log(process.env.watsonSpeechPass, 'watson speech apss');
 // make speech-to-text object using nodejs watson library
 var speech = watson.speech_to_text({
-  username: '25cfed28-d78a-43ba-8d29-210722248039',
+  username: process.env.watsonSpeechUser,
   password: 'RJMxTuG5P1aQ',
   version: 'v1'
 });
@@ -62,7 +63,5 @@ recognizeStream.on('results', function (data) {
 });
 
 recognizeStream.on('close', function (code, reason) {
-	var now = new Date();
-	process.stdout.write('Closed Watson connection at', now.toString());
   module.exports.emit('watsonClose', { code: code, reason: reason });
 });

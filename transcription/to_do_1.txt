@@ -13,3 +13,10 @@ Booth3 - anytime after 15 minutes
 Use a booth statement between transitions, especially if it is a random transition
 
 Endings 
+
+1. booth1, booth2 and booth3 – Max wants to hear the whole corpus on site tomorrow, so we should have these working
+2. incorporating DANCEMOVES1c_T01.aif – i've put it in the database. it's a whole song though, so i dunno if want we want is the ability to fade out the music and then skip to the next question – this may fall under manual controls – or just go for the simple option, have it fade out after a little while. i defer.
+3. manual controls
+4. memory ("earlier you were talking about...")
+5. documentation at end (post-interview bookkeeping)
+6. keywords – the luxury item. if this doesn't happen until next week, it's okay – we can incorporate it into the two later shoots.

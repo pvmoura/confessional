@@ -6,9 +6,11 @@ import sys
 import random
 import os
 def play(filename):
-	DIR = "/Users/tpf2/Dropbox/Current Booth Questions/programQuestions"
-	# files = os.listdir(DIR)
-	# filename = "/Users/tpf2/Desktop/pop-up-confessional/script/files/audio files/" + files[random.randint(0, len(files) - 1)]
+	DIR = os.environ.get(audioDir)
+	if DIR is None:
+		raise Exception("No audio directory")
+	
+	
 	filename = DIR + "/" + filename + ".wav"
 	f = wave.open(filename,"rb") 
 

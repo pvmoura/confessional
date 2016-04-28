@@ -6,8 +6,9 @@ var speech = watson.speech_to_text({
 });
 var fs = require('fs');
 // var filename = './transcription/testAudio.flac';
-var filename = '/Users/tpf2/Dropbox/Current Booth Questions/programQuestions/YEAH_T18.wav';
-var filename = '/Users/tpf2/Desktop/pedro/first_pass/recording.flac';
+//var filename = '/Users/tpf2/Dropbox/Current Booth Questions/programQuestions/YEAH_T18.wav';
+//var filename = '/Users/tpf2/Desktop/pedro/first_pass/recording.flac';
+var filename = '/Users/pedrovmoura/Documents/Code/third-party/confessional/recording.flac';
 //var stream = fs.createReadStream(filename);
 var recognizeStream = speech.createRecognizeStream({
   'content-type': 'audio/flac',

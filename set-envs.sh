@@ -1,0 +1,6 @@
+export csvPath="/Users/pedrovmoura/Documents/Code/third-party/confessional/questions.csv"
+export audioDir="/Users/pedrovmoura/Documents/Code/third-party/audioDir/programQuestions"
+export watsonTonePass="wPk4cIsEd3JV"
+export watsonToneUser="5f1cfb19-70be-4a78-ac9e-bc1e3f616687"
+export watsonSpeechPass="RJMxTuG5P1aQ"
+export watsonSpeechUser="25cfed28-d78a-43ba-8d29-210722248039"

@@ -1,0 +1,33 @@
+{
+	"name": "confessional",
+	"version": "0.1.0",
+	"description": "'Confessional' Pilot software coaxes confessions",
+	"homepage": "https://github.com/pvmoura/confessional",
+	"bugs": "pmavfmoura@gmail.com",
+	"license": "MIT",
+	"private": true,
+	"author": "Pedro Veloso Moura <pmavfmoura@gmail.com>",
+	"contributors": [
+		"Jenny Lim <jlim.etc@gmail.com>",
+		"Lester Kim <gunsnfnr89@gmail.com>",
+		"Maxim Poz <maximpoz@gmail.com>",
+		"Sam Richamn <samsrichman@gmail.com>",
+		"Joe Bender <joe.bender@gmail.com"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/pvmoura/confessional.git"
+	},
+	"scripts": {
+		"start": "node main.js",
+		"test": "mocha"
+	},
+	"dependencies": {
+		"ya-csv": ">=0.9.4",
+		"watson-developer-cloud": ">=1.3.3"
+	},
+	"devDependencies": {
+		"mocha": "~2.4.5"
+	},
+	"os": ["linux", "Mac OSX"]
+}

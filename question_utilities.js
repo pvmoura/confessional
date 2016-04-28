@@ -1,34 +1,49 @@
 var csv = require('ya-csv');
 var EE = require('events');
 var fs = require('fs');
+var csvPath = process.env.csvPath;
+var audioDir = process.env.audioDir;
 
+module.exports = new EE();
 
+module.exports.questionUtils = function (categories, nonSemanticCats) {
+	if (typeof csvPath === 'undefined' || csvPath === "") {
+		module.exports.emit('error', { message: "Undefined CSV path" });
+		return;
+	}
+	if (typeof audioDir === 'undefined' || audioDir === "") {
+		module.exports.emit('error', { message: "Undefined audio directory" });
+		return;
+	}
+	categories = categories || [];
+	nonSemanticCats = nonSemanticCats || [];
 
-
-module.exports.questionUtils = function (filename, categories, nonSemanticCats) {
-	if (typeof filename === 'undefined')
-		filename = '/Users/tpf2/Desktop/pedro/confessional-database/public/questions.csv';
 	var questions = [], that = this, utils;
-	var reader = csv.createCsvFileReader(filename);
-	reader.on('data', function(data) {
-		questions.push(data);
-	});
-	reader.on('error', function (data) {
-		console.log('error', data);
-	});
-	reader.on('end', function() {
-		console.log("questions read in");
-		var audioFiles = fs.readdirSync("/Users/tpf2/Dropbox/Current Booth Questions/programQuestions");
-		console.log(audioFiles.length);
-		audioFiles = audioFiles.map(function (elem) {
-			return elem.toLowerCase();
-		});
-		questions = questions.filter(function (elem) {
-			return audioFiles.indexOf(elem[1].toLowerCase() + '.wav') !== -1;
-		});
-		console.log(questions.length);
-		// callback(questions);
-	});
+	// var reader = csv.createCsvFileReader(csvPath);
+
+	// reader.on('data', function(data) {
+	// 	questions.push(data);
+	// });
+	// reader.on('error', function (data) {
+	// 	console.log('error', data);
+	// });
+	// reader.on('end', function() {
+	// 	console.log("questions read in");
+	// 	var audioFiles = fs.readdirSync(audioDir);
+	// 	console.log(audioFiles.length);
+	// 	audioFiles = audioFiles.map(function (elem) {
+	// 		return elem.toLowerCase();
+	// 	});
+	// 	questions = questions.filter(function (elem) {
+	// 		return audioFiles.indexOf(elem[1].toLowerCase() + '.wav') !== -1;
+	// 	});
+	// 	console.log(questions.length);
+	// });
+
+	function generalFilter (filterFun, qs) {
+		qs = qs || questions;
+		return qs.filter(filterFun);
+	}
 
 	
 	utils = {
@@ -38,55 +53,58 @@ module.exports.questionUtils = function (filename, categories, nonSemanticCats) 
 				questions.push(data);
 			});
 			reader.on('error', function (err) {
-				module.exports.emit('readError', err);
+				module.exports.emit('error', err);
 			});
 			reader.on('end', function() {
 				console.log("questions read in", questions.length);
+				questions = utils.filterByAudioFiles();
 				module.exports.emit('ready', questions);
 			});
 		},
-		filterByCategory: function (cat, qs) {
-			if (typeof qs === 'undefined')
-				qs = questions;
-			return qs.filter(function (elem) {
-				return elem[5] === cat;
+		filterByAudioFiles: function () {
+			var audioFiles = fs.readdirSync(audioDir);
+			audioFiles = audioFiles.map(function (elem) {
+				return elem.toLowerCase();
+			});
+			return generalFilter(function (elem) {
+				return audioFiles.indexOf(elem[1].toLowerCase() + '.wav') !== -1;
 			});
 		},
+		filterByCategory: function (cat, qs) {
+			return generalFilter(function (elem) {
+				return elem[5] === cat;
+			}, qs);
+		},
 		filterOutNonSemantics: function (qs) {
-			qs = qs || questions;
-			return qs.filter(function (q) {
+			return generalFilter(function (q) {
 				var notPresent = true;
 				q.slice(5, 8).map(function (tag) {
 					if (nonSemanticCats.indexOf(tag) !== -1)
 						notPresent = false;
 				});
 				return notPresent;
-			});
+			}, qs);
 		},
 		findQuestionsByFileRegEx: function (regex, qs) {
-			qs = qs || questions;
-			return qs.filter(function (q) {
+			return generalFilter(function (q) {
 				if (q[1].match(regex) !== null)
 					return true;
-			});
+			}, qs);
 		},
 		pickQuestionFromArray: function (qs) {
 			qs = qs || questions;
 			return qs[parseInt(Math.random()*qs.length, 10)];
 		},
 		findQuestionByFilename: function (filename, qs) {
-			qs = qs || questions;
-			for (var i = 0; i < qs.length; i++) {
-				if (qs[i][1] === filename)
-					return qs[i];
-			}
-			return null;
+			var filtered = generalFilter(function (elem) {
+				return elem[1] === filename;
+			}, qs);
+			return filtered.length === 1 ? filtered[0] : null;
 		},
 		filterOutAsked: function (asked, qs) {
-			qs = qs || questions;
-			return qs.filter(function (elem) {
+			return generalFilter(function (elem) {
 				return asked.indexOf(elem[1]) === -1;
-			});
+			}, qs);
 		},
 		allQuestions: function () {
 			return questions;
@@ -95,33 +113,30 @@ module.exports.questionUtils = function (filename, categories, nonSemanticCats) 
 	};
 	categories.map(function (cat) {
 		utils['filterOut' + cat] = function (qs) {
-			if (typeof qs === 'undefined')
-				qs = questions;
-
-			return qs.filter(function (q) {
-				var notPresent = true;
-				q.slice(5,8).map(function (tag) {
-					if (tag === cat)
-						notPresent = false;
-				});
-				return notPresent;
-			});
+			return generalFilter(function (elem) {
+				return elem.slice(5,8).indexOf(cat) === -1;
+			}, qs);
 		};
 
 		utils['filterBy' + cat] = function (qs) {
-			if (typeof qs === 'undefined')
-				qs = questions;
-
-			return qs.filter(function (q) {
-				var present = false;
-				q.slice(5, 8).map(function (tag) {
-					if (tag === cat)
-						present = true;
-				});
-				return present;
-			});
+			return generalFilter(function (elem) {
+				return elem.slice(5, 8).indexOf(cat) !== -1;
+			}, qs);
 		};
 	});
+	nonSemanticCats.map(function (cat) {
+		utils['filterOut' + cat] = function (qs) {
+			return generalFilter(function (elem) {
+				return elem.slice(5,8).indexOf(cat) === -1;
+			}, qs);
+		};
 
+		utils['filterBy' + cat] = function (qs) {
+			return generalFilter(function (elem) {
+				return elem.slice(5, 8).indexOf(cat) !== -1;
+			}, qs);
+		};
+	});
+	utils.populateQuestions(csvPath);
 	return utils;
 }

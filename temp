@@ -1,1 +1,50 @@
-<HTML><HEAD><meta content="text/html; charset=UTF-8" http-equiv="Content-Type"><TITLE>Watson Error</TITLE></HEAD><BODY><HR><p>An Internal Server Error has occured - /speech-to-text/api/v1/recognize?continuous=true</p><p>Unable to access server</p><p>Gateway Error Code : ERCD50-LDAP-DN-SRCH-ERR</p><p>Unable to communicate with Watson.</p><p>Request URL : /speech-to-text/api/v1/recognize?continuous=true</p><p>Error Id :  stream-dp01-104935368</p><p>Date-Time : 2016-04-21T15:59:11-04:00</p></BODY></HTML>
+{
+   "results": [
+      {
+         "alternatives": [
+            {
+               "confidence": 0.295, 
+               "transcript": "what's going on here "
+            }
+         ], 
+         "final": true
+      }, 
+      {
+         "alternatives": [
+            {
+               "confidence": 0.097, 
+               "transcript": "wonder "
+            }
+         ], 
+         "final": true
+      }, 
+      {
+         "alternatives": [
+            {
+               "confidence": 0.794, 
+               "transcript": "what is that is going "
+            }
+         ], 
+         "final": true
+      }, 
+      {
+         "alternatives": [
+            {
+               "confidence": 0.911, 
+               "transcript": "yeah "
+            }
+         ], 
+         "final": true
+      }, 
+      {
+         "alternatives": [
+            {
+               "confidence": 0.826, 
+               "transcript": "good idea "
+            }
+         ], 
+         "final": true
+      }
+   ], 
+   "result_index": 0
+}
