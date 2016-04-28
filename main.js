@@ -368,20 +368,29 @@ function timeSinceLastQuestion () {
 
 var thisProcess = process;
 
+function cleanUp () {
+	// fs.
+}
 function playQuestion(filename, end) {
 
 	console.log("playing...");
 	// var dir = "/Users/tpf2/Dropbox/Current Booth Questions/programQuestions/";
 	console.log(audioDir + filename);
+	question_order.write(filename + "\n");
+	transcription.write("COMPUTER SPEAKING\n\n");
 	player.play(audioDir + "/" + filename + ".wav", function (err){
+		transcription.write
 		if (err) {
 			console.log("ERROR WHILE PLAYING");
 		} else {
 			state.questionTimeStamps.push(Date.now());
+			transcription.write("PERSON SPEAKING\n\n");
 			detectSpeaking();
 		}
-		if (end)
+		if (end) {
 			thisProcess.kill(thisProcess.pid);
+			cleanUp();
+		}
 	})
 }
 
@@ -472,6 +481,7 @@ function detectSpeaking(threshold, duration) {
 function launchSilences(threshold, duration) {
 	state.checkSilence = true;
 	var options = [];
+	threshold = 400;
 	if (threshold) {
 		if (typeof duration === 'undefined')
 			options = [threshold];
