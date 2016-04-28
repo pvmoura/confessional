@@ -37,7 +37,7 @@ var state = {
 	usedCats: [],
 	currTrans: [],
 	silenceThreshold: null,
-	interviewLength: 1000 * 60 * 30,
+	interviewLength: 1000 * 60 * 5,
 	currentQuestion: null,
 	futypes: ['yesno', 'length', 'hardfollow'],
 	currentQuestion: null,
@@ -50,7 +50,8 @@ var state = {
 	ending: false,
 	classifierCounter: {},
 	strongCat: null,
-	currentCatCounts: {}
+	currentCatCounts: {},
+	startedSpeaking: null
 };
 
 
@@ -103,6 +104,7 @@ var actions = {
 
 function getEnd (options) {
 	var possQuestions = utils.findQuestionsByFileRegEx(/^[eE][nN][dD]/);
+	possQuestions = utils.filterOutfollowup(possQuestions);
 	console.log(possQuestions);
 	return utils['pickQuestionFromArray'](possQuestions);
 }
@@ -174,7 +176,7 @@ function getNonSemantic (options) {
 	}
 	filtered = utils.filterByCategory(category);
 	filtered = utils.filterOutnotfirst(filtered);
-	console.log(filtered, 'heree', category);
+	// console.log(filtered, 'heree', category);
 	filtered = utils.filterOutfollowup(filtered);
 	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
 	// come up with a better way of distinguishing between warmup and getting warmer, etc.
@@ -219,7 +221,7 @@ function pickRandomCat() {
 	var filtered = state.semanticCats.filter(function (elem) {
 		return state.usedCats.indexOf(elem) === -1;
 	});
-	console.log(filtered, 'filtered');
+	// console.log(filtered, 'filtered');
 	return utils.pickQuestionFromArray(filtered);
 }
 
@@ -456,7 +458,7 @@ function detectSpeaking(threshold, duration) {
 
 	if (typeof threshold === 'undefined')
 		// threshold = state.silenceThreshold || 40;
-		threshold = 30;
+		threshold = 10;
 	if (typeof duration === 'undefined')
 		duration = 1;
 	if (state.questionsAsked.length < 4 || state.categories.indexOf(state.currentCat) === -1)
@@ -471,6 +473,8 @@ function detectSpeaking(threshold, duration) {
 			console.log("THERE WAS SPEAKING", state.silenceThreshold);
 			// launchSilences(state.silenceThreshold);
 			state.checkSilence = true;
+			state.startedSpeaking = Date.now();
+			// launchSilences();
 			speaking.kill();
 		}
 
@@ -481,7 +485,6 @@ function detectSpeaking(threshold, duration) {
 function launchSilences(threshold, duration) {
 	state.checkSilence = true;
 	var options = [];
-	threshold = 400;
 	if (threshold) {
 		if (typeof duration === 'undefined')
 			options = [threshold];
@@ -509,7 +512,8 @@ function launchSilences(threshold, duration) {
 			}, 1500);
 		} else if (strData.indexOf('Threshold detected') !== -1) {
 			console.log("THERE WAS A SILENCE");
-			if (state.checkSilence) {
+			console.log(state.checkSilence, Date.now() - state.startedSpeaking, 'speaking');
+			if (state.checkSilence && Date.now() - state.startedSpeaking >= 3500) {
 				pickQuestion();
 			} else {
 				console.log('waiting for the person to speak');
