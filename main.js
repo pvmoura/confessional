@@ -51,7 +51,8 @@ var state = {
 	classifierCounter: {},
 	strongCat: null,
 	currentCatCounts: {},
-	startedSpeaking: null
+	startedSpeaking: null,
+	boothQuestions: 1
 };
 
 
@@ -118,7 +119,7 @@ function getFollowUp (options) {
 	var followFile = 3;
 	switch (fupType) {
 		case -1:
-			return;
+			break;
 		case 0:
 			//yesno logic
 			followFile = isShort() ? 3 : 4;
@@ -138,7 +139,7 @@ function getFollowUp (options) {
 	if (state.currentQuestion && state.currentQuestion[followFile]) {
 		return utils.findQuestionByFilename(state.currentQuestion[followFile]);
 	} else {
-		console.log("ERROR at followup");
+		console.log("ERROR at followup", state.currentQuestion);
 	}
 }
 
@@ -248,6 +249,16 @@ function compForArrofArrs(sortKey) {
 	};
 }
 
+function pickPreviousCat() {
+	var elem;
+	for (var i=0; i < state.oldCategories.length; i++) {
+		elem = state.oldCategories[i];
+		if (state.usedCats.indexOfelem[0] === -1)
+			return elem[0];
+	}
+	return null;
+}
+
 function getSemantic () {
 	var counts = {}, category, topCount = null, topCat = null, sorted;
 	state.nextCategory.map(function (elem, arr) {
@@ -268,7 +279,7 @@ function getSemantic () {
 	// 	}
 	// }
 	sorted = sortDictByVal(counts);
-	category = sorted.length > 0 ? sorted[0] : undefined;
+	category = sorted.length > 0 ? sorted[0][0] : undefined;
 	console.log(category, "CATEGORY");
 	
 	// console.log(state.nextCategory, category, "HELLO");
@@ -284,7 +295,9 @@ function getSemantic () {
 			state.shortPause = true;
 			return getNewQuestion(category, true);
 		} else {
-			pickRandomCat();
+			category = pickPreviousCat();
+			if (!category)
+				category = pickRandomCat();
 		}
 	} else {
 		// don't filter the available categories, possibly?
@@ -371,7 +384,7 @@ function timeSinceLastQuestion () {
 var thisProcess = process;
 
 function cleanUp () {
-	// fs.
+	fs.mkdir('interview-' + )
 }
 function playQuestion(filename, end) {
 
@@ -402,7 +415,7 @@ function getDiff (start) {
 }
 
 function boothQuestion () {
-	return state.inTransition && Date.now() % 2 === 0;
+	return state.inTransition && Date.now() % state.boothQuestions === 0;
 }
 
 
@@ -426,6 +439,7 @@ function pickQuestion () {
 			action = actions['nonSemantic'];
 		} else if (boothQuestion()) {
 			console.log('booth');
+			state.boothQuestions++;
 			action = actions['booth'];
 		} else {
 			console.log('semantic');
@@ -454,6 +468,12 @@ function pickQuestion () {
 	}
 }
 
+var waitingPeriods = {
+	'warmup': 5000,
+	'shortpause': 2000,
+	'intro': 
+}
+
 function detectSpeaking(threshold, duration) {
 
 	if (typeof threshold === 'undefined')
@@ -465,6 +485,7 @@ function detectSpeaking(threshold, duration) {
 		duration = 0.5;
 	else
 		duration = 3;
+	var activated = Date.now();
 	console.log("IN DETECT SPEAKING, threshold:", threshold);
 	speaking = exec('./threshold_detector/threshold_detector.py', [threshold, duration, 'gt']);
 	speaking.stdout.on('data', function (data) {
@@ -473,11 +494,14 @@ function detectSpeaking(threshold, duration) {
 			console.log("THERE WAS SPEAKING", state.silenceThreshold);
 			// launchSilences(state.silenceThreshold);
 			state.checkSilence = true;
-			state.startedSpeaking = Date.now();
+			// state.startedSpeaking = Date.now();
 			// launchSilences();
 			speaking.kill();
+		} else if ((waitingPeriods[state.currentCat] && Date.now() - activated >= waitingPeriods[state.currentCat]) || Date.now() - activated >= 10000) {
+			console.log("WAITED FOR ALLOTTED TIME");
+			state.checkSilence = true;
+			speaking.kill();
 		}
-
 	});
 
 }
