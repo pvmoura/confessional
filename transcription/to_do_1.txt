@@ -20,3 +20,5 @@ Endings
 4. memory ("earlier you were talking about...")
 5. documentation at end (post-interview bookkeeping)
 6. keywords – the luxury item. if this doesn't happen until next week, it's okay – we can incorporate it into the two later shoots.
+
+Check watson confidence values!

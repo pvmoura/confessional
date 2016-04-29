@@ -1,7 +1,7 @@
 var watson_transcriber = require('./transcription/watson_transcriber.js');
 var fr = require('./transcription/file_reader.js');
 var fs = require('fs');
-var transcription = fs.createWriteStream('transcription.txt');
+var transcription = fs.createWriteStream('transcription_' + Date.now() + '.txt');
 // var threshold = require('./threshold_detector/launch_threshold.js');
 var spawn = require('child_process').spawn;
 var exec = require('child_process').execFile;
@@ -37,7 +37,7 @@ var state = {
 	usedCats: [],
 	currTrans: [],
 	silenceThreshold: null,
-	interviewLength: 1000 * 60 * 5,
+	interviewLength: 1000 * 60 * 30,
 	currentQuestion: null,
 	futypes: ['yesno', 'length', 'hardfollow'],
 	currentQuestion: null,
@@ -144,7 +144,7 @@ function getFollowUp (options) {
 }
 
 function inIntro (timeDiff) {
-	if (timeDiff <= 60000) {
+	if (timeDiff <= state.interviewLength / 5) {
 		if (state.hasWarmedUp > 2 || state.strongCat)
 			return false;
 		else
@@ -154,7 +154,7 @@ function inIntro (timeDiff) {
 }
 
 function isShort() {
-	return timeSinceLastQuestion() < 60000;
+	return timeSinceLastQuestion() < 10000;
 }
 
 function isYes() {
@@ -170,7 +170,7 @@ function getNonSemantic (options) {
 		category = 'warmup';
 	} else {
 		state.hasWarmedUp++;
-		if (timeSinceLastQuestion() > 60000 || state.questionsAsked.length > 3)
+		if (timeSinceLastQuestion() > 25000 || state.questionsAsked.length > 3)
 			category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
 		else
 			category = 'warmup';
@@ -186,9 +186,9 @@ function getNonSemantic (options) {
 
 function getPersonality (data) {
 	var booths = ['booth1'], booth, filtered;
-	if (data.timeDiff >= 300000)
+	if (data.timeDiff >= 600000)
 		booths.push('booth2');
-	if (data.timeDiff >= 600000) {
+	if (data.timeDiff >= 900000) {
 		booths.push('booth3');
 		booths.shift();
 	}
@@ -279,7 +279,17 @@ function getSemantic () {
 	// 	}
 	// }
 	sorted = sortDictByVal(counts);
-	category = sorted.length > 0 ? sorted[0][0] : undefined;
+	if (sorted.length > 1) {
+		sorted = sorted.filter(function (elem) {
+			return elem[0] !== 'zzzzzz';
+		});
+		category = sorted[0][0];
+	} else if (sorted.length === 1) {
+		category = sorted[0][0];
+	} else {
+		category = undefined;
+	}
+	// category = sorted.length > 1 ? sorted[0][0] : undefined;
 	console.log(category, "CATEGORY");
 	
 	// console.log(state.nextCategory, category, "HELLO");
@@ -287,8 +297,8 @@ function getSemantic () {
 		category = state.strongCat;
 	} else if (category === 'zzzzzz') {
 		console.log(category, "HELLO THIS IS THE CATEGORY");
-		category = state.currentCat ? state.currentCat : pickRandomCat();
-		if (state.currentCat) {
+		// category = state.currentCat ? state.currentCat : pickRandomCat();
+		if (state.semanticCats.indexOf(state.currentCat) !== -1) {
 			category = state.currentCat;
 		} else if (state.strongCat) {
 			category = state.strongCat;
@@ -299,7 +309,7 @@ function getSemantic () {
 			if (!category)
 				category = pickRandomCat();
 		}
-	} else {
+	} else if (!category) {
 		// don't filter the available categories, possibly?
 		// availCats = state.semanticCats.filter(function (elem, i) {
 		// 	return state.usedCats.indexOf(elem) === -1;
@@ -384,7 +394,8 @@ function timeSinceLastQuestion () {
 var thisProcess = process;
 
 function cleanUp () {
-	fs.mkdir('interview-' + )
+	fs.mkdir('interview-' + Date.now());
+
 }
 function playQuestion(filename, end) {
 
@@ -403,8 +414,8 @@ function playQuestion(filename, end) {
 			detectSpeaking();
 		}
 		if (end) {
-			thisProcess.kill(thisProcess.pid);
 			cleanUp();
+			thisProcess.kill(thisProcess.pid);
 		}
 	})
 }
@@ -433,6 +444,7 @@ function pickQuestion () {
 				end = true;
 		} else if (diff >= state.interviewLength - 30000 || state.ending) {
 			console.log('end');
+			state.ending = true;
 			action = actions['end'];
 		} else if (inIntro(diff)) {
 			console.log('intro');
@@ -471,8 +483,8 @@ function pickQuestion () {
 var waitingPeriods = {
 	'warmup': 5000,
 	'shortpause': 2000,
-	'intro': 
-}
+	'intro': 5000,
+};
 
 function detectSpeaking(threshold, duration) {
 
@@ -497,8 +509,9 @@ function detectSpeaking(threshold, duration) {
 			// state.startedSpeaking = Date.now();
 			// launchSilences();
 			speaking.kill();
-		} else if ((waitingPeriods[state.currentCat] && Date.now() - activated >= waitingPeriods[state.currentCat]) || Date.now() - activated >= 10000) {
+		} else if ((duration >= 2 && waitingPeriods[state.currentCat] && Date.now() - activated >= waitingPeriods[state.currentCat]) || Date.now() - activated >= 10000) {
 			console.log("WAITED FOR ALLOTTED TIME");
+			// pickQuestion();
 			state.checkSilence = true;
 			speaking.kill();
 		}
