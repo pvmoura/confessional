@@ -1,27 +1,25 @@
 var watson_transcriber = require('./transcription/watson_transcriber.js');
 var fr = require('./transcription/file_reader.js');
 var fs = require('fs');
-var transcription = fs.createWriteStream('transcription_' + Date.now() + '.txt');
 // var threshold = require('./threshold_detector/launch_threshold.js');
 var spawn = require('child_process').spawn;
+var transcription, computerData, question_order, identifier;
 var exec = require('child_process').execFile;
 var filename = 'recording.flac';
 var rec;
 var silences;
-var watson = require('watson-developer-cloud');
 var audioDir = process.env.audioDir;
 var csv = require('ya-csv');
-var qp = require('./question_picking.js');
 var classifier = exec('./category_classifier.py');
 var player = require('play-sound')(opts={});
 var speaking;
-var question_order = fs.createWriteStream('question_order.txt');
 var qus = require('./question_utilities.js');
+const readline = require('readline');
 var state = {
 	transcripts: [],
 	silences: [],
 	tones: [],
-	startTime: Date.now(),
+	startTime: null,
 	questionCats: ['staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'],
 	semanticCats: ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
 	categories: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst', 'belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
@@ -54,12 +52,22 @@ var state = {
 	startedSpeaking: null,
 	boothQuestions: 1
 };
-
-
-// var questionsLoc = "/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv";
-var questionsLoc = "/Users/tpf2/Desktop/pedro/first_pass/questions.csv";
 var utils = qus.questionUtils(state.categories, state.nonSemanticCats);
-const readline = require('readline');
+
+function bookkeeping () {
+	var intIdentifier = 'interview-', now = Date.now();
+	identifier = createIdentifier(now);
+	state.startTime = now;
+	intIdentifier += identifier;
+	fs.mkdir(intIdentifier);
+	transcription = fs.createWriteStream(intIdentifier + '/transcription_' + identifier + '.txt');
+	computerData = fs.createWriteStream(intIdentifier + '/computer_data_' + identifier + '.txt');
+	question_order = fs.createWriteStream(intIdentifier + '/question_order.txt');
+}
+
+launchSilences();
+bookkeeping();
+console.log('testing silence threshold, please be quiet');
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -90,10 +98,27 @@ rl.on('line', function (cmd, key) {
   		speaking.kill();
   	}
   	pickQuestion();
+  } else if (cmd === 'v') {
+  	console.log("Saying a verbal nod");
+  	playVerbalNod();
   }
 });
+rl.on('error', function (err) {
+	console.log(err);
+})
 
-console.log(process.pid);
+function playVerbalNod () {
+	var filtered = utils.filterByCategory('verbalnod'), question;
+	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
+	question = utils.pickQuestionFromArray(filtered);
+
+	if (question && question[1]) {
+		state.questionsAsked.push(question[1]);
+		player.play(audioDir + "/" + question[1] + ".wav", function (err) {
+			if (err) console.log("ERROR WHILE PLAYING");
+		});
+	}
+}
 
 var actions = {
 	end: getEnd,
@@ -114,7 +139,6 @@ function getEnd (options) {
 // currentQuestion, as per database is something like:
 // [text, filename, typefollow, followfile(default/short/yes), followfile(no/long), tag1, tag2, tag3, keywords]
 function getFollowUp (options) {
-	// console.log(state.followUp, state.currentQuestion);
 	var fupType = state.followUp || state.futypes.indexOf(state.currentQuestion[2]);
 	var followFile = 3;
 	switch (fupType) {
@@ -200,7 +224,7 @@ function getPersonality (data) {
 
 function getNewQuestion (category, memory) {
 	var filtered = utils.filterByCategory(category);
-	if (memory && category === 'childhood' || category === 'love') {
+	if (memory && (category === 'childhood' || category === 'love')) {
 		filtered = utils.filterBysegue(filtered);
 	} else {
 		if (state.questionsInCat === 0) {
@@ -393,9 +417,18 @@ function timeSinceLastQuestion () {
 
 var thisProcess = process;
 
-function cleanUp () {
-	fs.mkdir('interview-' + Date.now());
-
+function createIdentifier (date) {
+	function prettify(num) {
+		return num < 10 ? '0' + num : num.toString();
+	}
+	date = new Date(date) || new Date(state.startTime);
+	var identifier = prettify(date.getHours()) +
+				     prettify(date.getMinutes()) +
+				 	 prettify(date.getSeconds()) + "_" +
+				 	 date.getFullYear() % 2000 +
+				 	 prettify(date.getMonth() + 1) +
+				 	 prettify(date.getDate());
+	return identifier;
 }
 function playQuestion(filename, end) {
 
@@ -522,6 +555,7 @@ function detectSpeaking(threshold, duration) {
 function launchSilences(threshold, duration) {
 	state.checkSilence = true;
 	var options = [];
+	threshold = 450;
 	if (threshold) {
 		if (typeof duration === 'undefined')
 			options = [threshold];
@@ -570,10 +604,6 @@ function launchSilences(threshold, duration) {
 	})
 }
 
-//readQuestions("/Users/pedrovmoura/Documents/Code/third-party/confessional-old/files/questions.csv");
-//readQuestions();
-launchSilences();
-console.log('testing silence threshold, please be quiet');
 function launchRec() {
 	if (!rec || rec.connected) {
 		console.log('launching recorder');
