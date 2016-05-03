@@ -81,7 +81,7 @@ function bookkeeping () {
 
 launchSilences();
 bookkeeping();
-// launchWatson();
+launchWatson();
 console.log('testing silence threshold, please be quiet');
 function launchWatson() {
 	console.log('Launching Watson!');
