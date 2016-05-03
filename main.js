@@ -1,4 +1,5 @@
-var watson_transcriber = require('./transcription/watson_transcriber.js');
+var watson = require('./transcription/watson_transcriber.js');
+var watson_stream;
 var fr = require('./transcription/file_reader.js');
 var fs = require('fs');
 // var threshold = require('./threshold_detector/launch_threshold.js');
@@ -81,13 +82,34 @@ bookkeeping();
 launchWatson();
 console.log('testing silence threshold, please be quiet');
 function launchWatson() {
+	console.log('Launching Watson!');
+	watson_stream = watson.createStream();
 	launchRec();
 	setTimeout(function () {
 		console.log(filename);
-		fr.readFile(filename, watson_transcriber.stream);
+		fr.readFile(filename, watson_stream);
 		console.log('recording started');
 		console.log('sending to Watson');
 	}, 1500);
+
+	watson_stream.on('finalData', function (data) {
+		var alternatives = data.results[0].alternatives[0];
+		state.currTrans.push(alternatives.transcript);
+		state.transcripts.push(alternatives.transcript);
+		classifier.stdin.write(state.currTrans.join(' ') + "\n");
+		transcription.write(alternatives.transcript);
+		strObj = JSON.stringify(data);
+		computerData.write(strObj + "\n\n");
+	});
+
+	watson_stream.on('watsonError', function (data) {
+		console.log("Watson died!");
+		console.log(data);
+		console.log(data.toString());
+		computerData.write("Watson died, because: " + data.toString() + "\n\n")
+		rec.kill();
+		launchWatson();
+	});
 }
 
 const rl = readline.createInterface({
@@ -136,6 +158,9 @@ rl.on('line', function (cmd, key) {
   } else if (cmd === 'r') {
   	console.log("RESETING SHIT");
   	hardResetCategories();
+  } else if (cmd === 'rw') {
+  	console.log('restarting watson');
+  	launchWatson();
   }
 });
 rl.on('error', function (err) {
@@ -363,6 +388,23 @@ function updateOldCats () {
 	state.oldCategories = consolidateArrs(state.oldCategories, sorted);
 	console.log(state.oldCategories, 'in update cats');
 };
+
+function aggregateAnswerData (categoryAsked, questionOrder) {
+	var answerData = {}, counts = hist(state.nextCategory), sorted = sortDictByVal(counts);
+	sorted = sorted.filter(function (elem) {
+		return elem[0] !== 'zzzzzz';
+	});
+	answerData.answerLength = timeSinceLastQuestion();
+	if (state.startedSpeaking && Date.now() - state.startedSpeaking <= answerData.answerLength)
+		answerData.talkingLength = Date.now() - state.startedSpeaking;
+	answerData.categoryAsked = categoryAsked;
+	answerData.questionOrder = questionOrder;
+	if (sorted[0])
+		answerData.topCat = sorted[0];
+	else
+		answerData.topCat = null;
+	return answerData;
+}
 
 function getSemantic () {
 	var counts = {}, category, topCount = null, topCat = null, sorted;
@@ -789,26 +831,3 @@ classifier.stderr.on('data', function (err) {
 	console.log("CLASSIFIER ERROR", err);
 });
 
-watson_transcriber.on('finalData', function (data) {
-	var alternatives = data.results[0].alternatives[0];
-	state.currTrans.push(alternatives.transcript);
-	state.transcripts.push(alternatives.transcript);
-	classifier.stdin.write(state.currTrans.join(' ') + "\n");
-	transcription.write(alternatives.transcript);
-	// words = 
-	// var stringyData = {
-	// 	confidence: alternatives.confidence,
-	// 	words: JSON.stringify(alternatives.word_confidence),
-	// 	timestamps: JSON.stringify(alternatives.timestamps)
-	// };
-	strObj = JSON.stringify(data);
-	// computerData.write("I'm " + alternatives.confidence + " confident you said: " + alternatives.transcript + "\n");
-	computerData.write(strObj + "\n\n");
-});
-
-watson_transcriber.on('watsonError', function (data) {
-	console.log("An error occurred!");
-	console.log(data);
-	console.log(data.message);
-	// watson_transcriber = watson_transcriber.restartStream();
-});

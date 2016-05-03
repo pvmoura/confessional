@@ -15,53 +15,54 @@ var watson = require('watson-developer-cloud');
 var fs = require('fs');
 var fr = require('./file_reader.js');
 var EE = require('events');
-
-console.log(process.env.watsonSpeechPass, 'watson speech apss');
 // make speech-to-text object using nodejs watson library
-var speech = watson.speech_to_text({
-  username: process.env.watsonSpeechUser,
-  password: 'RJMxTuG5P1aQ',
-  version: 'v1'
-});
-var recognizeStream = speech.createRecognizeStream({
-  'content-type': 'audio/flac; rate 44100',
-  word_confidence: true,
-  interim_results: true,
-  continuous: true
-});
+
 var errorLogs = fs.createWriteStream('errors.log');
 
-// make this an event emitting module with the stream object
-module.exports = new EE();
-module.exports.stream = recognizeStream;
+module.exports.createStream = function () {
+  var speech = watson.speech_to_text({
+    username: process.env.watsonSpeechUser,
+    password: process.env.watsonSpeechPass,
+    version: 'v1'
+  });
+  var recognizeStream = speech.createRecognizeStream({
+    'content-type': 'audio/flac; rate 44100',
+    word_confidence: true,
+    interim_results: true,
+    continuous: true
+  });
+  recognizeStream.on('error', function(error) {
+    var now = new Date();
+    errorLogs.write(now.toString() + ": " +  error.toString());
+    console.log(now.toString() + ": " + error.toString());
+    recognizeStream.emit('watsonError', error);
+  });
 
-recognizeStream.on('error', function(error) {
-	var now = new Date();
-	errorLogs.write(now.toString() + ": " +  error.toString());
-  console.log(now.toString() + ": " + error.toString());
-	module.exports.emit('watsonError', error);
-});
-
-// Watson streams emit a "results" event when they have any result
-// from Watson, interim or final. Interim results have a final attribute
-// set to false and they provide a draft of Watson's transcription.
-// This function waits for a final result
-recognizeStream.on('results', function (data) {
-  var results = data ? data.results : null, alternatives;
-
-  if (results && results.length > 0) {
-    if (results[0].final === true) {
-      console.log(results[0]);
-      alternatives = results[0].alternatives[0];
-      module.exports.emit('finalData', data);
+  // Watson streams emit a "results" event when they have any result
+  // from Watson, interim or final. Interim results have a final attribute
+  // set to false and they provide a draft of Watson's transcription.
+  // This function waits for a final result
+  recognizeStream.on('results', function (data) {
+    var results = data ? data.results : null, alternatives;
+    console.log(data);
+    if (results && results.length > 0) {
+      if (results[0].final === true) {
+        if (results[0].alternatives && results[0].alternatives.length >=0)
+          alternatives = results[0].alternatives[0];
+        if (typeof alternatives === 'undefined')
+          recognizeStream.emit('noAlternatives', data);
+        else
+          recognizeStream.emit('finalData', data);
+      } else {
+        recognizeStream.emit('interimData', data);
+      }
     } else {
-      module.exports.emit('interimData', data);
+      recognizeStream.emit('noData', results);
     }
-  } else {
-    module.exports.emit('noData', results);
-  }
-});
+  });
 
-recognizeStream.on('close', function (code, reason) {
-  module.exports.emit('watsonClose', { code: code, reason: reason });
-});
+  recognizeStream.on('close', function (code, reason) {
+    recognizeStream.emit('watsonClose', { code: code, reason: reason });
+  });
+  return recognizeStream;
+}
