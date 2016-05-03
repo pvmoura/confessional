@@ -509,7 +509,13 @@ function getNewCatBasedOnTopLengthAndCat (exclude, answerData) {
 		}
 	});
 	sortedRanks = sortDictByVal(ranks);
-	return sortedRanks[0];
+	category = answerData.filter(function (elem) {
+		return elem.question = sortedRanks[0][0];
+	});
+	if (category[0])
+		return category[0].topCat[0];
+	else
+		return null;
 }
 
 // defaults to long (minute+) responses
@@ -537,7 +543,7 @@ function countInstances (arr, instance) {
 
 function getSemanticNew () {
 	// check if current answer data is stronger (i.e. a longer response, strong category, etc., eventually strong confidence level)
-	var category = state.semanticCats.indexOf(state.currentCat) !== -1 ? null : state.currentCat;
+	var category = state.semanticCats.indexOf(state.currentCat) !== -1 ? state.currentCat : null;
 	var lastThree = state.answerData.slice(state.answerData.length - 4);
 	var lastThreeCats = lastThree.filter(function (elem) { return elem.categoryAsked === category; });
 	console.log(category, state.answerData);
