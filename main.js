@@ -55,7 +55,8 @@ var state = {
 	boothQuestions: 1,
 	verbalNodsAsked: [],
 	answerData: [],
-	nextCat: null
+	nextCat: null,
+	lastUnused: -1
 };
 var utils = qus.questionUtils(state.categories, state.nonSemanticCats);
 
@@ -64,7 +65,7 @@ function bookkeeping () {
 	identifier = createIdentifier(now);
 	state.startTime = now;
 	intIdentifier += identifier;
-	fs.mkdir(intIdentifier);
+	fs.mkdirSync(intIdentifier);
 	transcription = fs.createWriteStream(intIdentifier + '/transcription_' + identifier + '.txt');
 	transcription.on('error', function (err) {
 		if (err) { console.log("transcription error", err); }
@@ -485,15 +486,18 @@ function allCategoriesSorted (answerData) {
 function getNewUnusedCategory () {
 	var usedCatsHist = hist(state.usedCats);
 	var allCategories = allCategoriesSorted();
-	for (var i=0; i < allCategories.length; i++) {
-		if (usedCatsHist[allCategories[i]] < 3) {
-			return allCategories[i];
-		}
-	}
-	return null;
+	// for (var i=0; i < allCategories.length; i++) {
+	// 	// if (usedCatsHist[allCategories[i]] < 3) {
+	// 		return allCategories[i];
+	// 	// }
+	// }
+	state.lastUnused++;
+	return allCategories[state.lastUnused] ? allCategories[state.lastUnused] : null;
+	// return null;
 }
 
 function getNewCatBasedOnTopLengthAndCat (exclude, answerData) {
+	answerData = answerData || state.answerData;
 	var questionsByLength = sortByAnswerLength(answerData);
 	var questionsByTopCat = sortByTopCatCount(answerData);
 	var ranks = {}, sortedRanks;
@@ -509,13 +513,11 @@ function getNewCatBasedOnTopLengthAndCat (exclude, answerData) {
 		}
 	});
 	sortedRanks = sortDictByVal(ranks);
+	console.log(answerData, 'answerdata in getNewCat');
 	category = answerData.filter(function (elem) {
-		return elem.question = sortedRanks[0][0];
+		return sortedRanks[0] ? elem.question === sortedRanks[0][0] : null;
 	});
-	if (category[0])
-		return category[0].topCat[0];
-	else
-		return null;
+	return category[0] ? category[0].topCat[0] : null;
 }
 
 // defaults to long (minute+) responses
@@ -547,16 +549,16 @@ function getSemanticNew () {
 	var lastThree = state.answerData.slice(state.answerData.length - 4);
 	var lastThreeCats = lastThree.filter(function (elem) { return elem.categoryAsked === category; });
 	console.log(category, state.answerData);
-	if (!category) {
+	if (!category || countInstances(state.usedCats, category) >=3) {
 		// how do we pick new category
 		// we look at the last 3 questions. if they've all been the same category
 		// then we want to pick a new one
 		// Also, if they've been very short responses, we probably want to pick a new one (shorter than average)
 		// If they've been 
-		if (averageResponseLength(lastThree) > averageResponseLength) 
-			category = getNewCatBasedOnTopLengthAndCat(lastThree);
+		if (averageResponseLength(lastThree) > averageResponseLength()) 
+			category = getNewCatBasedOnTopLengthAndCat(state.usedCats, lastThree);
 		else
-			category = getNewCatBasedOnTopLengthAndCat();
+			category = getNewCatBasedOnTopLengthAndCat(state.usedCats);
 	}
 	console.log(category, 'cat after top length and cat');
 	if (!category) {
@@ -567,7 +569,7 @@ function getSemanticNew () {
 	} else if (lastThreeCats.length > 1 && (averageResponseLength(lastThreeCats) < averageResponseLength())) {
 		category = getNewUnusedCategory();
 	}
-
+	console.log(category, 'cat after if statement');
 	if (!category) {
 		category = pickRandomCat();
 	}
@@ -789,7 +791,7 @@ function getDiff (start) {
 }
 
 function boothQuestion () {
-	return state.inTransition && Date.now() % state.boothQuestions === 0;
+	return state.inTransition && state.boothQuestions <=3 && Date.now() % state.boothQuestions === 0;
 }
 
 function pickPopularCat () {
@@ -819,6 +821,7 @@ function pickQuestion () {
 	if (answerData)
 		state.answerData.push(answerData);
 	state.nextCategory = [];
+	console.log("HELLOLDLSLD");
 	if (state.manualHold !== true) {
 		var diff = getDiff();
 		//var relevantData = gatherRelevantData(diff);
@@ -980,13 +983,11 @@ function launchSilences(threshold, duration) {
 }
 
 function launchRec() {
-	if (!rec || rec.connected) {
-		console.log('launching recorder');
-		rec = exec('./s.sh');
-		rec.stdout.on('data', function (data) {
-			// process.stdout.write(data);
-		});
-	}
+	console.log('launching recorder');
+	rec = exec('./s.sh');
+	rec.stdout.on('data', function (data) {
+		// process.stdout.write(data);
+	});
 };
 
 classifier.stdout.on('data', function (data) {
@@ -1005,4 +1006,6 @@ classifier.stdout.on('data', function (data) {
 classifier.stderr.on('data', function (err) {
 	console.log("CLASSIFIER ERROR", err);
 });
-
+classifier.on('error', function (Err) {
+	console.log("CLASSIFIER ERROR", Err);
+});
