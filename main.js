@@ -16,6 +16,14 @@ var player = require('play-sound')(opts={});
 var speaking;
 var timeout;
 var qus = require('./question_utilities.js');
+var sd = require('./silences.js');
+sd.on('silencePeriod', function (data) {
+	// do something with silences/speaking data.
+	sd.utils.toggleDormant();
+	pickQuestion();
+});
+
+sd.utils.start(10000, 2500, 3500, 50);
 const readline = require('readline');
 var state = {
 	transcripts: [],
@@ -58,6 +66,11 @@ var state = {
 	nextCat: null,
 	lastUnused: -1
 };
+sd.on('ready', function (silenceThreshold) {
+	state.silenceThreshold = silenceThreshold;
+	console.log("READY TO GO");
+	pickQuestion();
+});
 var utils = qus.questionUtils(state.categories, state.nonSemanticCats);
 
 function bookkeeping () {
@@ -80,7 +93,7 @@ function bookkeeping () {
 	});
 }
 
-launchSilences();
+// launchSilences();
 bookkeeping();
 launchWatson();
 console.log('testing silence threshold, please be quiet');
@@ -123,8 +136,10 @@ const rl = readline.createInterface({
 rl.on('line', function (cmd, key) {
   cmd = cmd.toLowerCase();
   if (cmd === 'h') {
+  	sd.utils.toggleHold();
   	if (!state.manualHold) {
   		state.manualHold = true;
+  		// sd.utils.toggleHold();
   		console.log("manual hold ON");
   	} else {
   		state.manualHold = false;
@@ -239,11 +254,10 @@ function getFollowUp (options) {
 
 function inIntro (timeDiff) {
 	if (timeDiff <= state.interviewLength / 5) {
-		if (state.hasWarmedUp > 2 || state.strongCat)
-			return false;
-		else
+		if (state.questionsAsked.length < 3)
 			return true;
 	}
+	return false;
 	// return (timeDiff <= 60000 || state.hasWarmedUp <= 2);
 }
 
@@ -268,13 +282,11 @@ function getNonSemantic (options) {
 		category = 'warmup';
 	} else {
 		state.hasWarmedUp++;
-		if (timeSinceLastQuestion() > 25000 || state.questionsAsked.length > 3)
-			category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
-		else
-			category = 'warmup';
+		// if (timeSinceLastQuestion() > 25000 || state.questionsAsked.length > 3)
+		category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
 	}
 	filtered = utils.filterByCategory(category);
-	filtered = utils.filterOutnotfirst(filtered);
+	// filtered = utils.filterOutnotfirst(filtered);
 	// console.log(filtered, 'heree', category);
 	filtered = utils.filterOutfollowup(filtered);
 	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
@@ -776,8 +788,11 @@ function playQuestion(filename, end) {
 				timeout = setTimeout(function () {
 					pickQuestion();
 				},2000);
-			} else
-				detectSpeaking();
+			} else {
+				sd.utils.start(10000, 2500, 3500);
+				sd.utils.detector.stdout.emit('data', '0');
+				// detectSpeaking();
+			}
 		}
 		if (end) {
 			thisProcess.kill(thisProcess.pid);
@@ -816,6 +831,7 @@ test = false;
 function pickQuestion () {
 	var answerData;
 	state.checkSilence = false;
+	sd.utils.toggleDormant();
 	updateOldCats();
 	answerData = aggregateAnswerData(state.currentCat, state.questionsAsked.length, state.currentQuestion);
 	if (answerData)
@@ -900,87 +916,88 @@ var waitingPeriods = {
 	'hurt': 15000
 };
 
-function detectSpeaking(threshold, duration) {
+// function detectSpeaking(threshold, duration) {
 
-	if (typeof threshold === 'undefined')
-		// threshold = state.silenceThreshold || 40;
-		threshold = state.SilenceThreshold || 200;
-	if (typeof duration === 'undefined')
-		duration = 1;
-	if (state.questionsAsked.length < 4 || state.categories.indexOf(state.currentCat) === -1)
-		duration = 0.5;
-	else
-		duration = 3;
-	var activated = Date.now(), line;
-	console.log("IN DETECT SPEAKING; threshold, duration, category:", threshold, duration, state.currentCat);
-	speaking = exec('./threshold_detector/threshold_detector.py', [threshold, duration, 'gt']);
-	speaking.stdout.on('data', function (data) {
-		strData = data.toString();
-		if (strData.indexOf('Threshold detected') !== -1) {
-			line = "THERE WAS SPEAKING" + state.silenceThreshold;
-			console.log(line);
-			computerData.write(line + "\n\n");
-			// launchSilences(state.silenceThreshold);
-			state.checkSilence = true;
-			state.startedSpeaking = Date.now();
-			// launchSilences();
-			speaking.kill();
-		} else if (!state.checkSilence && ((duration >= 2 && waitingPeriods[state.currentCat] && Date.now() - activated >= waitingPeriods[state.currentCat]) || Date.now() - activated >= 10000)) {
-			line = "WAITED FOR ALLOTTED TIME";
-			computerData.write(line + "\n\n");
-			console.log("WAITED FOR ALLOTTED TIME");
-			// pickQuestion();
-			state.checkSilence = true;
-			speaking.kill();
-		}
-	});
+// 	if (typeof threshold === 'undefined')
+// 		// threshold = state.silenceThreshold || 40;
+// 		threshold = state.SilenceThreshold || 200;
+// 	if (typeof duration === 'undefined')
+// 		duration = 1;
+// 	if (state.questionsAsked.length < 4 || state.categories.indexOf(state.currentCat) === -1)
+// 		duration = 0.5;
+// 	else
+// 		duration = 3;
+// 	var activated = Date.now(), line;
+// 	console.log("IN DETECT SPEAKING; threshold, duration, category:", threshold, duration, state.currentCat);
+// 	speaking = exec('./threshold_detector/threshold_detector.py', [threshold, duration, 'gt']);
+// 	speaking.stdout.on('data', function (data) {
+// 		strData = data.toString();
+// 		if (strData.indexOf('Threshold detected') !== -1) {
+// 			line = "THERE WAS SPEAKING" + state.silenceThreshold;
+// 			console.log(line);
+// 			computerData.write(line + "\n\n");
+// 			// launchSilences(state.silenceThreshold);
+// 			state.checkSilence = true;
+// 			state.startedSpeaking = Date.now();
+// 			// launchSilences();
+// 			speaking.kill();
+// 		} else if (!state.checkSilence && ((duration >= 2 && waitingPeriods[state.currentCat] && Date.now() - activated >= waitingPeriods[state.currentCat]) || Date.now() - activated >= 10000)) {
+// 			line = "WAITED FOR ALLOTTED TIME";
+// 			computerData.write(line + "\n\n");
+// 			console.log("WAITED FOR ALLOTTED TIME");
+// 			// pickQuestion();
+// 			state.checkSilence = true;
+// 			speaking.kill();
+// 		}
+// 	});
 
-}
+// }
 
-function launchSilences(threshold, duration) {
-	state.checkSilence = true;
-	var options = [];
-	if (threshold) {
-		if (typeof duration === 'undefined')
-			options = [threshold];
-		else
-			options = [threshold, duration];
-	}
-	silences = exec('./threshold_detector/threshold_detector.py', options);
-	silences.stdout.on('data', function (data) {
-		// console.log(data);
-		var strData = data.toString();
-		if (strData.indexOf('volume threshold set at:') !== -1) {
-			console.log(data.toString(), 'here is the right thing', typeof strData, strData);
-			if (!state.silenceThreshold) {
-				strData = strData.replace(/[a-zA-Z :]/g, '');
-				state.silenceThreshold = Number(strData.split('\n')[0]);
-				console.log('starting recorder.....', state.silenceThreshold);
-			}
-			pickQuestion();
-		} else if (strData.indexOf('Threshold detected') !== -1) {
-			console.log("THERE WAS A SILENCE");
-			console.log(state.checkSilence, Date.now() - state.startedSpeaking, 'speaking');
-			// if (state.checkSilence && Date.now() - state.startedSpeaking >= 3500) {
-			if (state.checkSilence) {
-				pickQuestion();
-			} else {
-				console.log('waiting for the person to speak');
-			}
+// function launchSilences(threshold, duration) {
+// 	// silenceUtils = sd.utils;
+// 	state.checkSilence = true;
+// 	var options = [];
+// 	if (threshold) {
+// 		if (typeof duration === 'undefined')
+// 			options = [threshold];
+// 		else
+// 			options = [threshold, duration];
+// 	}
+// 	silences = exec('./threshold_detector/threshold_detector.py', options);
+// 	silences.stdout.on('data', function (data) {
+// 		// console.log(data);
+// 		var strData = data.toString();
+// 		if (strData.indexOf('volume threshold set at:') !== -1) {
+// 			console.log(data.toString(), 'here is the right thing', typeof strData, strData);
+// 			if (!state.silenceThreshold) {
+// 				strData = strData.replace(/[a-zA-Z :]/g, '');
+// 				state.silenceThreshold = Number(strData.split('\n')[0]);
+// 				console.log('starting recorder.....', state.silenceThreshold);
+// 			}
+// 			pickQuestion();
+// 		} else if (strData.indexOf('Threshold detected') !== -1) {
+// 			console.log("THERE WAS A SILENCE");
+// 			console.log(state.checkSilence, Date.now() - state.startedSpeaking, 'speaking');
+// 			// if (state.checkSilence && Date.now() - state.startedSpeaking >= 3500) {
+// 			if (state.checkSilence) {
+// 				pickQuestion();
+// 			} else {
+// 				console.log('waiting for the person to speak');
+// 			}
 
-		} else if (strData.indexOf('Threshold time: ') !== -1) {
-			state.silences.push(Number(strData.slice(16)));
-		}
-	});
+// 		} else if (strData.indexOf('Threshold time: ') !== -1) {
+// 			state.silences.push(Number(strData.slice(16)));
+// 		}
+// 	});
 
-	silences.stderr.on('data', function (err) {
-		console.log('error', err);
+// 	silences.stderr.on('data', function (err) {
+// 		console.log('error', err);
 
-	});
-	silences.on('close', function (code) {
-		console.log('silences closed', code);
-	})
-}
+// 	});
+// 	silences.on('close', function (code) {
+// 		console.log('silences closed', code);
+// 	})
+// }
 
 function launchRec() {
 	console.log('launching recorder');
