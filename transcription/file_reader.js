@@ -18,7 +18,7 @@ module.exports.readFile = function (filename, stream, intervalTime) {
     return;
   }
   fs.open(filename, 'r', function (err, fd) {
-    var currStats, currentPos = 0, length, intervalObj, emitted = false;
+    var currStats, currentPos = 0, length, intervalObj, emitted = false, atEnd = 0;
     
     function setCurrentRecordingStats (filename) {
       var stats = fs.statSync(filename);
@@ -74,8 +74,15 @@ module.exports.readFile = function (filename, stream, intervalTime) {
                 updateEssentials(currentPos + length);
                 // console.log(currentPos, buffer.length, "CURRENT PSO");
                 if (currentPos >= currStats.size) {
+                  atEnd++;
                   console.log("CURRENT POS IS EQUAL TO SIZE", currentPos, currStats);
-                  // clearInterval(intervalObj);
+                  if (atEnd === 8) {
+                    // clearInterval(intervalObj);
+                    module.exports.emit("stagnantFile", stream);
+                  } else if (atEnd === 10) {
+                    clearInterval(intervalObj);
+                    console.log("clearing interval");
+                  }
                   // if (!emitted) {
                   //   module.exports.emit("readError");
                   //   emitted = true;
@@ -84,6 +91,9 @@ module.exports.readFile = function (filename, stream, intervalTime) {
                   //   }, 2000);
                   // }
                   updateEssentials(currentPos - length - 20000);
+                } else {
+                  atEnd = 0;
+
                 }
               }
             });
