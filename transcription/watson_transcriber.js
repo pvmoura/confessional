@@ -17,8 +17,6 @@ var fr = require('./file_reader.js');
 var EE = require('events');
 // make speech-to-text object using nodejs watson library
 
-var errorLogs = fs.createWriteStream('errors.log');
-
 module.exports.createStream = function () {
   var speech = watson.speech_to_text({
     username: process.env.watsonSpeechUser,
@@ -33,7 +31,7 @@ module.exports.createStream = function () {
   });
   recognizeStream.on('error', function(error) {
     var now = new Date();
-    errorLogs.write(now.toString() + ": " +  error.toString());
+    // errorLogs.write(now.toString() + ": " +  error.toString());
     console.log(now.toString() + ": " + error.toString());
     recognizeStream.emit('watsonError', error);
   });
@@ -44,7 +42,6 @@ module.exports.createStream = function () {
   // This function waits for a final result
   recognizeStream.on('results', function (data) {
     var results = data ? data.results : null, alternatives;
-    console.log(data);
     if (results && results.length > 0) {
       if (results[0].final === true) {
         if (results[0].alternatives && results[0].alternatives.length >=0)

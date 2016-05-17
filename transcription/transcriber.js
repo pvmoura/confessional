@@ -4,7 +4,6 @@ var watson = require('./watson_transcriber.js'),
 	fs = require('fs');
 
 function launchRecording (filename) {
-	// var recording = execFile(process.env.projectDir + '/transcription/record.sh', [filename]);
 	var recording = exec('rec -r 44100 -b 16 ' + filename);
 	return recording;
 }

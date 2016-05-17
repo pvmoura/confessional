@@ -1,19 +1,10 @@
-// var watson = require('./transcription/watson_transcriber.js');
-// var watson_stream;
-var fr = require('./transcription/file_reader.js');
+
 var fs = require('fs');
-// var threshold = require('./threshold_detector/launch_threshold.js');
-var spawn = require('child_process').spawn;
 var transcription, computerData, question_order, identifier;
-var exec = require('child_process').execFile;
-var filename = 'recording.flac';
-var rec;
-var silences;
+var execFile = require('child_process').execFile;
 var audioDir = process.env.audioDir;
-var csv = require('ya-csv');
-var classifier = exec('./category_classifier.py');
+var classifier = execFile('./category_classifier.py');
 var player = require('play-sound')(opts={});
-var speaking;
 var timeout;
 var qus = require('./question_utilities.js');
 var sd = require('./silences.js');
@@ -42,18 +33,11 @@ sd.utils.start();
 const readline = require('readline');
 var state = {
 	transcripts: [],
-	silences: [],
-	tones: [],
 	startTime: Date.now(),
-	questionCats: ['staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'],
 	semanticCats: ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
-	categories: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst', 'belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
 	hasIntroed: false,
 	hasWarmedUp: 0,
-	catsAsked: [],
 	questionTimeStamps: [],
-	proceduralCat: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'semantic'],
-	nonSemanticCats: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'staller', 'followup', 'booth1', 'booth2', 'booth3', 'segue', 'verbalnod', 'encouragement', 'empathy'],
 	followUp: null,
 	questionsAsked: [],
 	nextCategory: [],
@@ -61,24 +45,16 @@ var state = {
 	currTrans: [],
 	silenceThreshold: null,
 	interviewLength: 1000 * 60 * 30,
-	currentQuestion: null,
 	futypes: ['yesno', 'length', 'hardfollow'],
 	currentQuestion: null,
-	oldCategories: [],
 	questionsInCat: 0,
 	currentCat: null,
-	checkSilence: false,
 	inTransition: false,
 	manualHold: false,
 	ending: false,
-	classifierCounter: {},
 	strongCat: null,
-	currentCatCounts: {},
-	startedSpeaking: null,
 	boothQuestions: 1,
 	verbalNodsAsked: [],
-	answersByQuestion: {},
-	nextCat: null,
 	lastUnused: -1,
 	currSilence: null,
 	currSpeaking: null,
@@ -123,7 +99,7 @@ if (process.argv[2] === 'restart') {
 	restartRecent();
 }
 
-var utils = qus.questionUtils(state.categories, state.nonSemanticCats);
+var utils = qus.questionUtils();
 
 function bookkeeping () {
 	var intIdentifier = process.env.transcriptDir + 'interview-', now = Date.now();
@@ -166,7 +142,6 @@ rl.on('line', function (cmd, key) {
   	sd.utils.toggleHold();
   	if (!state.manualHold) {
   		state.manualHold = true;
-  		// sd.utils.toggleHold();
   		console.log("manual hold ON");
   	} else {
   		state.manualHold = false;
@@ -181,10 +156,6 @@ rl.on('line', function (cmd, key) {
   	state.interviewLength += 300000;
   } else if (cmd === 's') {
   	console.log("Skipping this question");
-  	state.checkSilence = true;
-  	if (speaking) {
-  		speaking.kill();
-  	}
   	pickQuestion();
   } else if (cmd === 'v') {
   	console.log("Saying a verbal nod");
@@ -196,10 +167,6 @@ rl.on('line', function (cmd, key) {
   		timeout = undefined;
   	}
   	playQuestion(state.currentQuestion);
-  } else if (cmd === 'ti') {
-  	actions['semantic'] = actions['semantic'] == getSemanticNew ? getSemanticOld : getSemanticNew;
-
-  	console.log('intelligence set to: ', actions['semantic']);
   } else if (cmd === 'r') {
   	console.log("RESETING SHIT");
   	hardResetCategories();
@@ -297,16 +264,8 @@ function inIntro (timeDiff) {
 
 function isShort() {
 	return state.currSpeaking < 7500;
-	var now = Date.now();
-	var lastQ = timeSinceLastQuestion(), testTime = lastQ;
-	if (state.startedSpeaking && now - state.startedSpeaking <= lastQ)
-		testTime = now - state.startedSpeaking;
-	return testTime < 7500;
 }
 
-function isYes() {
-	return true;
-}
 function getNonSemantic (options) {
 	var possQuestions, category, filtered, question;
 	if (!state.hasIntroed) {
@@ -412,16 +371,6 @@ function compForArrofArrs(sortKey) {
 	};
 }
 
-function pickPreviousCat() {
-	var elem;
-	for (var i=0; i < state.oldCategories.length; i++) {
-		elem = state.oldCategories[i];
-		if (state.usedCats.indexOfelem[0] === -1)
-			return elem[0];
-	}
-	return null;
-}
-
 function getKeys (dict) {
 	var keys = [];
 	for (var key in dict) {
@@ -431,17 +380,6 @@ function getKeys (dict) {
 	return keys;
 }
 
-function updateOldCats () {
-	var counts = {};
-	state.nextCategory.map(function (elem, arr) {
-		if (typeof counts[elem] === 'undefined')
-			counts[elem] = 0;
-		counts[elem]++;
-	});
-	sorted = sortDictByVal(counts);
-	state.oldCategories = consolidateArrs(state.oldCategories, sorted);
-	console.log(state.oldCategories, 'in update cats');
-};
 
 function aggregateAnswerData (categoryAsked, questionOrder, question, arr) {
 	if (questionOrder === 0 || categoryAsked == null)
@@ -646,99 +584,10 @@ function getSemanticNew () {
 
 }
 
-function getSemanticOld () {
-	var counts = {}, category, topCount = null, topCat = null, sorted;
-	state.nextCategory.map(function (elem, arr) {
-		if (typeof counts[elem] === 'undefined')
-			counts[elem] = 0;
-		counts[elem]++;
-	});
-	console.log(state.nextCategory, 'next cats are in getSemantic');
-
-	sorted = sortDictByVal(counts);
-	console.log(sorted);
-	if (sorted.length > 1) {
-		console.log("IN HERE");
-		sorted = sorted.filter(function (elem) {
-			return elem[0] !== 'zzzzzz';
-		});
-		category = sorted[0][0];
-		// state.oldCategories = consolidateArrs(state.oldCategories, sorted);
-		// console.log(state.oldCategories, 'old cats');
-	} else if (sorted.length === 1) {
-		// if (sorted[0][0] !== 'zzzzzz')
-		// 	state.oldCategories = consolidateArrs(state.oldCategories, sorted);
-		category = sorted[0][0];
-		// console.log(state.oldCategories, 'old cats');
-	} else {
-		category = undefined;
-	}
-	console.log(category, "CATEGORY");
-	
-	// console.log(state.nextCategory, category, "HELLO");
-	// category = 'zzzzzz';
-	// category = undefined;
-	usedCatshist = hist(state.usedCats);
-	if (category === 'zzzzzz' || state.usedCats.indexOf(category) !== -1) {
-		console.log(category, "HELLO THIS IS THE CATEGORY");
-		// category = state.currentCat ? state.currentCat : pickRandomCat();
-		if (state.semanticCats.indexOf(state.currentCat) !== -1 && usedCatshist[category] < 3) {
-			category = state.currentCat;
-		} else if (state.strongCat) {
-			category = state.strongCat;
-			state.shortPause = true;
-			return getNewQuestion(category, true);
-		} else {
-			// fix this previous category business
-			category = pickPopularCat();
-			console.log("CATEGORY POPULAR", category);
-			if (category === 'zzzzzz')
-				category = pickPopularCat();
-			if (!category && state.semanticCats.indexOf(state.currentCat) !== -1) {
-				category = state.currentCat;
-			} else
-				category = pickRandomCat();
-			
-		}
-	} else if (!category) {
-		// fix this previous category business
-		category = pickPopularCat();
-		console.log(category);
-		console.log("CATEGORY POPULAR", category);
-		if (category === 'zzzzzz')
-			category = pickPopularCat();
-		console.log(state.currentCat, "CURRENT CATEGORY");
-		if (!category && state.semanticCats.indexOf(state.currentCat) !== -1) {
-			category = state.currentCat;
-
-		} else
-			category = pickRandomCat();
-	}
-	// } else if (!category) {
-	// 	// don't filter the available categories, possibly?
-	// 	// availCats = state.semanticCats.filter(function (elem, i) {
-	// 	// 	return state.usedCats.indexOf(elem) === -1;
-	// 	// });
-	// 	// category = availCats[parseInt(Math.random() * availCats.length, 10)];
-	// 	console.log('hello');
-	// 	category = state.currentCat && state.currentCat != "followup" ? state.currentCat : pickRandomCat();
-	// }
-	console.log('cat is', category, state.currentCat);
-	return getNewQuestion(category);
-}
-
 function hardResetCategories () {
 	state.usedCats = [];
 }
 
-function updateClassifierInfo () {
-	var counts = hist(state.nextCategory);
-	for (var key in counts) {
-		if (typeof state.classifierCounter[key] === 'undefined')
-			state.classifierCounter[key] = 0;
-		state.classifierCounter[key] += counts[key];
-	}
-}
 function hist (arr) {
 	var counts = {};
 	arr.map(function (elem, arr) {
@@ -776,15 +625,6 @@ function updateState (question) {
 		state.followUp = null;
 	if (question)
 		state.questionsAsked.push(question[1]);
-	state.answersByQuestion[question[1]] = {};
-	// sorted = sortDictByVal(hist(state.nextCategory));
-	// console.log(sorted, state.nextCategory, 'next cats are');
-	// sorted = sorted.filter(function (elem) {
-	// 	return elem[0] !== 'zzzzzz';
-	// });
-	// state.oldCategories = consolidateArrs(state.oldCategories, sorted);
-	// state.oldCategories.sort(compForArrofArrs(1));
-	console.log("old cats are", state.oldCategories);
 
 	state.nextCategory = [];
 	state.currTrans = [];
@@ -801,15 +641,6 @@ function updateState (question) {
 		state.questionsInCat = 0;
 		state.currentCat = null;
 		state.inTransition = true;
-	}
-}
-
-function timeSinceLastQuestion () {
-	var now = Date.now();
-	if (state.questionTimeStamps.length === 0)
-		return now - state.startTime;
-	else {
-		return now - state.questionTimeStamps[state.questionTimeStamps.length - 1];
 	}
 }
 
@@ -908,24 +739,6 @@ function boothQuestion () {
 	return state.inTransition && state.boothQuestions < 2 && Date.now() % state.boothQuestions === 0;
 }
 
-function pickPopularCat () {
-	var cat;
-	console.log('in popular, old cats are', state.oldCategories, state.usedCats);
-	state.oldCategories.sort(compForArrofArrs);
-	var usedCatshist = hist(state.usedCats);
-	if (state.oldCategories.length > 0) {
-		// cat = state.oldCategories.shift();
-		cat = state.oldCategories[0];
-		// if (cat && cat[0]) {
-		while (cat && cat[0] && usedCatshist[cat[0]] > 3 && state.oldCategories.length > 0) {
-			state.oldCategories.shift();
-			cat = state.oldCategories[0];
-		}
-		if (cat && cat[0])
-			return cat[0];
-	}
-	return undefined;
-}
 test = true;
 function pickQuestion () {
 	var answerData;
@@ -933,7 +746,6 @@ function pickQuestion () {
 	// sd.utils.toggleDormant();
 	// sd.utils.dormantOn();
 	sd.utils.isDormant();
-	updateOldCats();
 	answerData = aggregateAnswerData(state.currentCat, state.questionsAsked.length, state.currentQuestion);
 	if (answerData)
 		// state.answerData.[state.currentQuestion[1]] = answerData;
@@ -1013,22 +825,6 @@ function pickQuestion () {
 		console.log('hold');
 	}
 }
-
-var waitingPeriods = {
-	'warmup': 5000,
-	'shortpause': 2000,
-	'intro': 5000,
-	'wrong': 15000,
-	'hurt': 15000
-};
-
-function launchRec() {
-	console.log('launching recorder');
-	rec = exec('./s.sh');
-	rec.stdout.on('data', function (data) {
-		// process.stdout.write(data);
-	});
-};
 
 classifier.stdout.on('data', function (data) {
 	data = data.trim();

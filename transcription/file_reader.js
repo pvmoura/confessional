@@ -53,61 +53,39 @@ module.exports.readFile = function (filename, stream, intervalTime) {
       updateEssentials(0);
       intervalObj = setInterval(function () {
         var buffer;
-        // console.log(currentPos, currStats.size);
-        // if (currentPos < currStats.size) {
-          blocks = calculateBlocksToRead(currStats.blksize, currentPos, currStats.size);
-          length = calculateBytesToRead(currentPos, currStats.size); //blocks > 0 ? blocks * currStats.blksize : calculateBytesToRead(currentPos, currStats.size);
-          if (length <= 0) {
-            length = currStats.size >= 20000 ? currStats.size - 20000 : currStats.size;
-            currentPos = currStats.size >= 20000 ? currStats.size - 20000 : currStats.size;
-          }
-          buffer = new Buffer(length);
-          // console.log("LENGTH IS", length, "buffer size is", buffer.length);
-          // console.log(buffer.length);
-          if (buffer.length > 0 && buffer.length >= length) {
-            fs.read(fd, buffer, 0, length, currentPos, function (err, bytesRead, buffer) {
-              if (err) console.log('error', err);
-              else {
-                // console.log(buffer);
-                module.exports.emit('data', buffer);
-                stream.write(buffer);
-                updateEssentials(currentPos + length);
-                // console.log(currentPos, buffer.length, "CURRENT PSO");
-                if (currentPos >= currStats.size) {
-                  atEnd++;
-                  console.log("CURRENT POS IS EQUAL TO SIZE", currentPos, currStats);
-                  if (atEnd === 8) {
-                    // clearInterval(intervalObj);
-                    module.exports.emit("stagnantFile", stream);
-                  } else if (atEnd === 10) {
-                    clearInterval(intervalObj);
-                    console.log("clearing interval");
-                  }
-                  // if (!emitted) {
-                  //   module.exports.emit("readError");
-                  //   emitted = true;
-                  //   setTimeout(function () {
-                  //     emitted = false;
-                  //   }, 2000);
-                  // }
-                  updateEssentials(currentPos - length - 20000);
-                } else {
-                  atEnd = 0;
+        blocks = calculateBlocksToRead(currStats.blksize, currentPos, currStats.size);
+        length = calculateBytesToRead(currentPos, currStats.size);
+        if (length <= 0) {
+          length = currStats.size >= 20000 ? currStats.size - 20000 : currStats.size;
+          currentPos = currStats.size >= 20000 ? currStats.size - 20000 : currStats.size;
+        }
+        buffer = new Buffer(length);
 
+        if (buffer.length > 0 && buffer.length >= length) {
+          fs.read(fd, buffer, 0, length, currentPos, function (err, bytesRead, buffer) {
+            if (err) console.log('error', err);
+            else {
+              stream.write(buffer);
+              updateEssentials(currentPos + length);
+              if (currentPos >= currStats.size) {
+                atEnd++;
+                console.log("CURRENT POS IS EQUAL TO SIZE", currentPos, currStats);
+                if (atEnd === 8) {
+                  module.exports.emit("stagnantFile", stream);
+                } else if (atEnd === 10) {
+                  clearInterval(intervalObj);
+                  console.log("clearing interval");
                 }
-              }
-            });
-          } else {
-            console.log("BUFFER SIZE TOO SMALL", buffer.length, length, currentPos, currStats.size);
-            // clearInterval(intervalObj);
-            // module.exports.emit("readError");
-          }
-        // } else {
-          // clearInterval(intervalObj);
-          // updateEssentials()
+                updateEssentials(currentPos - length - 20000);
+              } else {
+                atEnd = 0;
 
-          //module.exports.emit('end');
-        // }
+              }
+            }
+          });
+        } else {
+          console.log("BUFFER SIZE TOO SMALL", buffer.length, length, currentPos, currStats.size);
+        }
       }, intervalTime);
       intervals.push(intervalObj);
     }

@@ -15,30 +15,10 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 		module.exports.emit('error', { message: "Undefined audio directory" });
 		return;
 	}
-	categories = categories || [];
-	nonSemanticCats = nonSemanticCats || [];
+	categories = categories || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst', 'belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'];
+	nonSemanticCats = nonSemanticCats || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'staller', 'followup', 'booth1', 'booth2', 'booth3', 'segue', 'verbalnod', 'encouragement', 'empathy'];
 
 	var questions = [], that = this, utils;
-	// var reader = csv.createCsvFileReader(csvPath);
-
-	// reader.on('data', function(data) {
-	// 	questions.push(data);
-	// });
-	// reader.on('error', function (data) {
-	// 	console.log('error', data);
-	// });
-	// reader.on('end', function() {
-	// 	console.log("questions read in");
-	// 	var audioFiles = fs.readdirSync(audioDir);
-	// 	console.log(audioFiles.length);
-	// 	audioFiles = audioFiles.map(function (elem) {
-	// 		return elem.toLowerCase();
-	// 	});
-	// 	questions = questions.filter(function (elem) {
-	// 		return audioFiles.indexOf(elem[1].toLowerCase() + '.wav') !== -1;
-	// 	});
-	// 	console.log(questions.length);
-	// });
 
 	function generalFilter (filterFun, qs) {
 		qs = qs || questions;
