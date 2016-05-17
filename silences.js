@@ -7,12 +7,13 @@ var state = {
 	silences: []
 };
 var EE = require('events');
-var duration = 3500, dormant = false, hold = false, silencePeriods = [], speakingPeriods = [], startTime;
+var duration = 3500, dormant = false, hold = false, silencePeriods = [],
+	speakingPeriods = [], startTime, holdingPeriod = null, customWait = null, defaultDuration = null;
 module.exports = new EE();
 
 function getDuration (holdingPeriod, customWait, defaultDuration) {
 	var now = Date.now(), newDuration = defaultDuration;
-	console.log(speakingPeriods, silencePeriods);
+	// console.log(speakingPeriods, silencePeriods);
 	console.log(now, startTime, now - startTime);
 	if (now - startTime <= holdingPeriod) {
 		if (speakingPeriods.length === 0)	
@@ -25,10 +26,16 @@ function getDuration (holdingPeriod, customWait, defaultDuration) {
 	return newDuration;
 }
 
-function createDetector (holdingPeriod, customWait, defaultDuration, threshold) {
+function createDetector (threshold, reset) {
 	var detector, silencePeriod, speakingPeriod, intervals = [], options = ['change'], interval;
-	if (threshold) {
+	if (typeof threshold !== 'undefined') {
 		options.push(threshold);
+	}
+	function clearIntervals () {
+		intervals.forEach(function (interval) {
+			clearInterval(interval);
+		});
+		intervals = [];
 	}
 
 	detector = execFile('./threshold_detector/threshold_detector.py', options);
@@ -47,24 +54,33 @@ function createDetector (holdingPeriod, customWait, defaultDuration, threshold) 
 				silencePeriod = Date.now();
 				if (speakingPeriod)
 					speakingPeriods.push(Date.now() - speakingPeriod);
-				duration = getDuration(holdingPeriod, customWait, defaultDuration);
-				console.log("WAITING FOR " + duration / 1000 + " SECONDS TO ASK QUESTION");
-				console.log(interval, 'interval');
-				if (!interval) {
-					interval = setInterval(function () {
-						var now = Date.now();
-						if (now - silencePeriod < duration)
-							console.log("ASKING A QUESTION IN " + (((duration / 2) - 500) / 1000) + " SECONDS!");
-						else if (!hold) {
-							console.log("ASKING QUESTION");
-							module.exports.emit('silencePeriod', { silences: silencePeriods, speaking: speakingPeriods });
-							silencePeriods = [];
-							speakingPeriods = [];
-						} else {
-							console.log("HOLDING");
-						}
-					}, duration / 2);
-				}
+				if (speakingPeriods.length > 0) {
+					duration = getDuration(holdingPeriod, customWait, defaultDuration);
+					console.log("WAITING FOR " + duration / 1000 + " SECONDS TO ASK QUESTION");
+					// console.log(interval, 'interval is');
+
+					if (!interval) {
+						interval = setInterval(function () {
+							console.log('setting new interval');
+							var now = Date.now();
+							if (now - silencePeriod < duration)
+								console.log("ASKING A QUESTION IN " + (((duration / 2) - 500) / 1000) + " SECONDS!");
+							else if (!hold) {
+								console.log("ASKING QUESTION");
+								module.exports.emit('silencePeriod', { silences: silencePeriods, speaking: speakingPeriods });
+								clearIntervals();
+								silencePeriods = [];
+								speakingPeriods = [];
+							} else {
+								console.log("HOLDING");
+							}
+						}, duration / 2);
+						intervals.push(interval);
+						// console.log(intervals, "INTERVALS ARE");
+					}
+				} else {
+					console.log("waiting for the person to speak", speakingPeriods);
+				} 
 				// intervals.push(interval);
 
 			}
@@ -73,7 +89,9 @@ function createDetector (holdingPeriod, customWait, defaultDuration, threshold) 
 				// 	clearInterval(interval);
 				// });
 				// intervals = [];
-				clearInterval(interval);
+
+				clearIntervals();
+
 				interval = null;
 
 
@@ -100,10 +118,15 @@ function createDetector (holdingPeriod, customWait, defaultDuration, threshold) 
 		console.log('silences closed', code);
 	});
 
-	if (threshold) {
+	if (threshold && !reset) {
 		module.exports.emit('ready', threshold);
 		console.log("THRESHOLD");
+	} else if (threshold && reset) {
+		module.exports.emit('resetThreshold', threshold);
+		console.log("RESET THRESHOLD TO", threshold);
 	}
+
+
 
 	return detector;
 };
@@ -111,7 +134,12 @@ function createDetector (holdingPeriod, customWait, defaultDuration, threshold) 
 
 module.exports.utils = {
 	detector: null,
-	start: function (holdingPeriod, customWait, defaultDuration, threshold) {
+	holdingPeriod: null,
+	customWait: null,
+	defaultDuration: null,
+	threshold: null,
+	start: function (threshold) {
+		console.log("THE DETECTOR IS", this.detector ? this.detector.pid : null);
 		if (!this.detector)
 			this.detector = createDetector.apply(this, arguments);
 		startTime = Date.now();
@@ -133,20 +161,46 @@ module.exports.utils = {
 	getDuration: function () {
 		return duration;
 	},
-	toggleDormant: function () {
-		dormant = !dormant;
+	dormantOn: function () {
+		dormant = true;
 		console.log("silences dormant");
 		this.clearIntervals();
+	},
+	dormantOff: function () {
+		dormant = false;
+		console.log("silences not dormant");
 	},
 	toggleHold: function () {
 		hold = !hold;
 		console.log(hold ? "HOLD ON" : "HOLD OFF");
 	},
 	clearIntervals: function () {
-		intervals.map(function (interval) {
+		console.log("clearing intervals");
+		intervals.forEach(function (interval) {
 			clearInterval(interval);
 		});
 		intervals = [];
+	},
+	isDormant: function () {
+		console.log("THE DORMANT SETTING", dormant);
+		return dormant;
+	},
+	setThreshold: function (threshold) {
+		console.log("given threshold is", threshold);
+		if (this.detector)
+			this.detector.kill();
+		this.threshold = Number(threshold);
+		this.detector = createDetector(threshold, true);
+	},
+	setOptions: function (options) {
+		if (options) {
+			holdingPeriod = options.holdingPeriod;
+			customWait = options.customWait;
+			defaultDuration = options.defaultDuration;
+			this.holdingPeriod = options.holdingPeriod;
+			this.customWait = options.customWait;
+			this.defaultDuration = options.defaultDuration;
+		}
 	}
 };
 
