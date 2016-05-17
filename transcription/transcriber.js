@@ -9,7 +9,7 @@ function launchRecording (filename) {
 	return recording;
 }
 
-function launchWatson (callback, that) {
+function launchWatson (callback) {
 	watson_stream = watson.createStream();
 
 	watson_stream.on('finalData', function (data) {
@@ -85,7 +85,7 @@ module.exports.createTranscriber = function (options, callback) {
 				console.log("Passed the stream back");
 			});
 			this.recordingObj = launchRecording(this.filename);
-			this.watsonObj = launchWatson(callback, this);
+			this.watsonObj = launchWatson(callback);
 		},
 		stopTranscription: function () {
 			fr.killReader(this.recordingObj.pid);

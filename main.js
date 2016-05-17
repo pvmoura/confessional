@@ -1,5 +1,5 @@
-var watson = require('./transcription/watson_transcriber.js');
-var watson_stream;
+// var watson = require('./transcription/watson_transcriber.js');
+// var watson_stream;
 var fr = require('./transcription/file_reader.js');
 var fs = require('fs');
 // var threshold = require('./threshold_detector/launch_threshold.js');
@@ -17,19 +17,34 @@ var speaking;
 var timeout;
 var qus = require('./question_utilities.js');
 var sd = require('./silences.js');
+var transcriberUtils = require('./transcription/transcriber.js');
+var transcriber;
 sd.on('silencePeriod', function (data) {
 	// do something with silences/speaking data.
-	sd.utils.toggleDormant();
+	// sd.utils.toggleDormant();
+	console.log("THis is the silence data", data);
+	sd.utils.dormantOn();
+	state.currSpeaking = data.speaking.reduce(function (c, p, a, i) {
+		return isNaN(c) ? p : p + c;  
+	}, 0);
+	state.currSilence = data.silences.reduce(function (c, p, a, i) {
+		return isNaN(c) ? p : p + c;
+	}, 0);
+	console.log(state.currSpeaking, state.currSilence);
 	pickQuestion();
 });
-
-sd.utils.start(10000, 2500, 3500, 50);
+sd.utils.setOptions({
+	holdingPeriod: 10000,
+	customWait: 2500,
+	defaultDuration: 3500
+})
+sd.utils.start();
 const readline = require('readline');
 var state = {
 	transcripts: [],
 	silences: [],
 	tones: [],
-	startTime: null,
+	startTime: Date.now(),
 	questionCats: ['staller', 'followup', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst'],
 	semanticCats: ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
 	categories: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst', 'belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
@@ -62,21 +77,58 @@ var state = {
 	startedSpeaking: null,
 	boothQuestions: 1,
 	verbalNodsAsked: [],
-	answerData: [],
+	answersByQuestion: {},
 	nextCat: null,
-	lastUnused: -1
+	lastUnused: -1,
+	currSilence: null,
+	currSpeaking: null,
+	answerData: []
 };
 sd.on('ready', function (silenceThreshold) {
 	state.silenceThreshold = silenceThreshold;
+	sd.utils.dormantOn();
 	console.log("READY TO GO");
 	pickQuestion();
 });
+sd.on('resetThreshold', function (silenceThreshold) {
+	state.silenceThreshold = silenceThreshold;
+});
+
+function restartRecent () {
+	var lastInterview = fs.readFileSync('last_interview.txt', { encoding: 'utf-8' }).trim();
+	var questions = fs.readFileSync(lastInterview + "/question_order.txt", { encoding: 'utf-8' }).split('\n');
+	var elapsedTime;
+	questions = questions.map(function (elem) {
+		var info = elem.split(':');
+		return elem !== '' ? { identifier: info[0], time: info[1] } : null;
+	});
+	questions = questions.filter(function (elem) {
+		return elem;
+	});
+	state.questionsAsked = questions.map(function (elem) {
+		return elem.identifier;
+	});
+	elapsedTime = Math.max.apply(null, questions.map(function (elem) {
+		var time = Number(elem.time);
+		return isNaN(time) ? 0 : time;
+	}));
+	console.log('restarting', state.questionsAsked, 'elapsedTime:', elapsedTime);
+	state.startTime = Date.now() - elapsedTime;
+	state.hasIntroed = true;
+
+	console.log(questions);
+	// process.kill(process.pid);
+}
+if (process.argv[2] === 'restart') {
+	restartRecent();
+}
+
 var utils = qus.questionUtils(state.categories, state.nonSemanticCats);
 
 function bookkeeping () {
 	var intIdentifier = process.env.transcriptDir + 'interview-', now = Date.now();
-	identifier = createIdentifier(now);
-	state.startTime = now;
+	identifier = createIdentifier(state.startTime);
+	// state.startTime = now;
 	intIdentifier += identifier;
 	fs.mkdirSync(intIdentifier);
 	transcription = fs.createWriteStream(intIdentifier + '/transcription_' + identifier + '.txt');
@@ -88,6 +140,13 @@ function bookkeeping () {
 		if (err) { console.log("transcription error", err); }
 	});
 	question_order = fs.createWriteStream(intIdentifier + '/question_order.txt');
+	if (state.questionsAsked.length > 0) {
+		state.questionsAsked.forEach(function (q) {
+			question_order.write(q + ":\n")
+		});
+	}
+
+	fs.writeFileSync('last_interview.txt', intIdentifier);
 	question_order.on('error', function (err) {
 		if (err) { console.log("transcription error", err); }
 	});
@@ -95,47 +154,6 @@ function bookkeeping () {
 
 // launchSilences();
 bookkeeping();
-launchWatson();
-console.log('testing silence threshold, please be quiet');
-function launchWatson() {
-	console.log('Launching Watson!');
-	watson_stream = watson.createStream();
-	launchRec();
-	setTimeout(function () {
-		console.log(filename);
-		fr.readFile(filename, watson_stream);
-		fr.on('readError', function () {
-			console.log("A read error occurred. Relaunching Watson");
-			launchRec();
-			setTimeout(function () {
-				fr.readFile(filename, watson_stream);
-			});
-		});
-		console.log('recording started');
-		console.log('sending to Watson');
-	}, 1500);
-
-	watson_stream.on('finalData', function (data) {
-		var alternatives = data.results[0].alternatives[0];
-		state.currTrans.push(alternatives.transcript);
-		state.transcripts.push(alternatives.transcript);
-		classifier.stdin.write(state.currTrans.join(' ') + "\n");
-		transcription.write(alternatives.transcript);
-		strObj = JSON.stringify(data);
-		computerData.write(strObj + "\n\n");
-		// watson_stream.emit('watsonError', {});
-	});
-
-	watson_stream.on('watsonError', function (data) {
-		console.log("Watson died!");
-		console.log(data);
-		console.log(data.toString());
-		computerData.write("Watson died, because: " + data.toString() + "\n\n")
-		// rec.kill();
-		fr.killReader();
-		launchWatson();
-	});
-}
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -177,7 +195,7 @@ rl.on('line', function (cmd, key) {
   		clearTimeout(timeout);
   		timeout = undefined;
   	}
-  	playQuestion(state.currentQuestion[1]);
+  	playQuestion(state.currentQuestion);
   } else if (cmd === 'ti') {
   	actions['semantic'] = actions['semantic'] == getSemanticNew ? getSemanticOld : getSemanticNew;
 
@@ -186,8 +204,10 @@ rl.on('line', function (cmd, key) {
   	console.log("RESETING SHIT");
   	hardResetCategories();
   } else if (cmd === 'rw') {
-  	console.log('restarting watson');
-  	launchWatson();
+  	// console.log('restarting watson');
+  	// launchWatson();
+  } else if (!isNaN(Number(cmd))) {
+  	sd.utils.setThreshold(Number(cmd));
   }
 });
 rl.on('error', function (err) {
@@ -231,6 +251,7 @@ function getEnd (options) {
 function getFollowUp (options) {
 	var fupType = state.followUp || state.futypes.indexOf(state.currentQuestion[2]);
 	var followFile = 3;
+	var superlong = state.currentQuestion.indexOf('superlong') !== -1;
 	// console.log(isShort(), state.followUp, fupType, "HELLO FOLLOWUP");
 	switch (fupType) {
 		case -1:
@@ -246,7 +267,7 @@ function getFollowUp (options) {
 			followFile = isShort() ? 3 : 4;
 			break;
 		case 'length':
-			followFile = isShort() ? 3 : 4;
+			followFile = isShort() ? 3 : superlong && state.currSpeaking > 60000 ? 4 : 3;
 			break;
 		default:
 			followFile = 3;
@@ -263,15 +284,11 @@ function getFollowUp (options) {
 
 function inIntro (timeDiff) {
 	if (timeDiff <= state.interviewLength / 5) {
-<<<<<<< HEAD
-		if (state.questionsAsked.length < 3)
-=======
 		// if (state.hasWarmedUp > 2 || state.strongCat)
 		// 	return false;
 		// else
 		// 	return true;
 		if (state.hasWarmedUp <= 3)
->>>>>>> 1908952c04ecbe39858a4ca2611c79228593c325
 			return true;
 	}
 	return false;
@@ -279,6 +296,7 @@ function inIntro (timeDiff) {
 }
 
 function isShort() {
+	return state.currSpeaking < 7500;
 	var now = Date.now();
 	var lastQ = timeSinceLastQuestion(), testTime = lastQ;
 	if (state.startedSpeaking && now - state.startedSpeaking <= lastQ)
@@ -335,12 +353,11 @@ function getNewQuestion (category, memory) {
 		filtered = utils.filterBysegue(filtered);
 	} else {
 		console.log("QUESTIONS IN CAT", state.questionsInCat);
-		if (state.usedCats.indexOf(category) === -1) {
-			filtered = utils.filterOutnotfirst(filtered);
-		// } else if (state.questionsInCat === 2) {
-			// filtered = utils.filterByescapehatch(filtered);
-		// } else {
-			// filtered = utils.filterOutescapehatch(filtered);
+		console.log(state.usedCats, category, "CATEGORY AND USED CATS");
+		if (countInstances(state.usedCats, category) === 1) {
+			filtered = utils.filterByescapehatch(filtered);
+		} else {
+			filtered = utils.filterOutescapehatch(filtered);
 		}
 		filtered = utils.filterOutfollowup(filtered);
 		filtered = utils.filterOutNonSemantics(filtered);
@@ -435,9 +452,8 @@ function aggregateAnswerData (categoryAsked, questionOrder, question, arr) {
 		return elem[0] !== 'zzzzzz';
 	});
 	answerData.question = question[1];
-	answerData.answerLength = timeSinceLastQuestion();
-	if (state.startedSpeaking && Date.now() - state.startedSpeaking <= answerData.answerLength)
-		answerData.talkingLength = Date.now() - state.startedSpeaking;
+	answerData.speakingLength = state.currSpeaking;
+	answerData.silenceLength = state.currSilence;
 	answerData.categoryAsked = categoryAsked;
 	answerData.questionOrder = questionOrder;
 	answerData.categories = sorted;
@@ -539,6 +555,7 @@ function getNewCatBasedOnTopLengthAndCat (exclude, answerData) {
 	answerData = answerData || state.answerData;
 	var questionsByLength = sortByAnswerLength(answerData);
 	var questionsByTopCat = sortByTopCatCount(answerData);
+	console.log("IN NEW CAT BASED ON TOP LENGTH AND CAT");
 	var ranks = {}, sortedRanks;
 	exclude = exclude || state.usedCats;
 	questionsByLength.map(function (elem, i) {
@@ -551,6 +568,7 @@ function getNewCatBasedOnTopLengthAndCat (exclude, answerData) {
 			}
 		}
 	});
+	console.log(ranks);
 	sortedRanks = sortDictByVal(ranks);
 	console.log(answerData, 'answerdata in getNewCat');
 	category = answerData.filter(function (elem) {
@@ -585,22 +603,22 @@ function countInstances (arr, instance) {
 function getSemanticNew () {
 	// check if current answer data is stronger (i.e. a longer response, strong category, etc., eventually strong confidence level)
 	var category = state.semanticCats.indexOf(state.currentCat) !== -1 ? state.currentCat : null;
-	if (state.answerData.length > 0 && state.answerData[state.answerData.length - 1].topCat) {
-		console.log("IN CATEGORY PICKING");
-		category = state.answerData[state.answerData.length - 1].topCat ? state.answerData[state.answerData.length - 1].topCat[0] : null;
-	}
-
-	var lastThree = state.answerData.slice(state.answerData.length - 4);
+	var lastThree = state.answerData.slice(state.answerData.length - 5);
 	var lastThreeCats = lastThree.filter(function (elem) { return elem.categoryAsked === category; });
+	var lastThreeOnlyCats = lastThree.map(function (elem) { return elem.cateogryAsked; });
 	console.log(category, state.answerData);
 	var temp;
-	if (!category || countInstances(state.usedCats, category) >=3) {
+	if (!category || countInstances(lastThreeOnlyCats, category) >= 3) {
 		// how do we pick new category
 		// we look at the last 3 questions. if they've all been the same category
 		// then we want to pick a new one
 		// Also, if they've been very short responses, we probably want to pick a new one (shorter than average)
 		// If they've been 
-		if (averageResponseLength(lastThree) > averageResponseLength()) 
+		var lastTopCat = state.answerData[state.answerData.length - 1].topCat;
+		if (state.answerData.length > 0 && lastTopCat && lastTopCat !== category) {
+			console.log("IN CATEGORY PICKING");
+			category = state.answerData[state.answerData.length - 1].topCat ? state.answerData[state.answerData.length - 1].topCat[0] : null;
+		} else if (averageResponseLength(lastThree) > averageResponseLength()) 
 			category = getNewCatBasedOnTopLengthAndCat(state.usedCats, lastThree);
 		else
 			category = getNewCatBasedOnTopLengthAndCat(state.usedCats);
@@ -609,7 +627,7 @@ function getSemanticNew () {
 	if (!category) {
 		temp = getNewUnusedCategory();
 		category = temp ? temp[0] : null;
-	} else if (countInstances(lastThreeCats, category) > 3) {
+	} else if (countInstances(lastThreeOnlyCats, category) > 3) {
 		// pick a new category
 		console.log('in countInstances');
 		temp = getNewUnusedCategory();
@@ -758,6 +776,7 @@ function updateState (question) {
 		state.followUp = null;
 	if (question)
 		state.questionsAsked.push(question[1]);
+	state.answersByQuestion[question[1]] = {};
 	// sorted = sortDictByVal(hist(state.nextCategory));
 	// console.log(sorted, state.nextCategory, 'next cats are');
 	// sorted = sorted.filter(function (elem) {
@@ -809,31 +828,69 @@ function createIdentifier (date) {
 				 	 prettify(date.getDate());
 	return identifier;
 }
-function playQuestion(filename, end) {
 
-	console.log("playing...");
+function makeWatsonCallback(currQ) {
+	var questionIdent = currQ;
+	
+	return function (err, data) {
+		if (err) {
+			// if (transcriber.active && transcriber.restart) {
+				// transcriber.startTranscription();
+			// } else {
+				console.log("Watson is done");
+			// }
+		} else {
+			var alternatives = data.results[0].alternatives[0];
+			console.log(alternatives);
+			if (alternatives) {
+				state.currTrans.push(alternatives.transcript);
+				state.transcripts.push(alternatives.transcript);
+				classifier.stdin.write(state.currTrans.join(' ') + "\n");
+				transcription.write(alternatives.transcript);
+				strObj = JSON.stringify(data);
+				computerData.write(strObj + "\n\n");	
+			} else {
+				console.log("Something went wrong");
+			}
+		}
+	}
+}
+function playQuestion(question, end) {
+
+	console.log("playing...", question);
 	computerData.write("Playing Question...\n\n")
-	// var dir = "/Users/tpf2/Dropbox/Current Booth Questions/programQuestions/";
+	var filename = question[1];
 	console.log(audioDir + filename);
-	question_order.write(filename + "\n");
+	question_order.write(filename + ":" + (Date.now() - state.startTime).toString() + "\n");
 	transcription.write("COMPUTER SPEAKING\n\n");
+	if (transcriber)
+		transcriber.stopTranscription();
 	player.play(audioDir + "/" + filename + ".wav", function (err){
 		if (err) {
 			console.log("ERROR WHILE PLAYING");
+		} // else {
+		state.questionTimeStamps.push(Date.now());
+		transcription.write("PERSON SPEAKING\n\n");
+		if (state.currentQuestion.indexOf('shortpause') !== -1) {
+			console.log("IN SHORT PAUSE");
+			timeout = setTimeout(function () {
+				pickQuestion();
+			},2000);
 		} else {
-			state.questionTimeStamps.push(Date.now());
-			transcription.write("PERSON SPEAKING\n\n");
-			if (state.currentQuestion.indexOf('shortpause') !== -1) {
-				console.log("IN SHORT PAUSE");
-				timeout = setTimeout(function () {
-					pickQuestion();
-				},2000);
-			} else {
-				sd.utils.start(10000, 2500, 3500);
-				sd.utils.detector.stdout.emit('data', '0');
-				// detectSpeaking();
-			}
+
+			transcriber = transcriberUtils.createTranscriber({restart: true}, makeWatsonCallback(question[1]));
+			transcriber.startTranscription();
+			sd.utils.dormantOff();
+			sd.utils.setOptions({
+				holdingPeriod: 10000,
+				customWait: 2500,
+				defaultDuration: 3500
+			});
+			// sd.utils.detector.stdout.emit('data', '0');
+			// detectSpeaking();
+			
 		}
+		//}
 		if (end) {
 			thisProcess.kill(thisProcess.pid);
 		}
@@ -869,14 +926,17 @@ function pickPopularCat () {
 	}
 	return undefined;
 }
-test = false;
+test = true;
 function pickQuestion () {
 	var answerData;
 	state.checkSilence = false;
-	sd.utils.toggleDormant();
+	// sd.utils.toggleDormant();
+	// sd.utils.dormantOn();
+	sd.utils.isDormant();
 	updateOldCats();
 	answerData = aggregateAnswerData(state.currentCat, state.questionsAsked.length, state.currentQuestion);
 	if (answerData)
+		// state.answerData.[state.currentQuestion[1]] = answerData;
 		state.answerData.push(answerData);
 	state.nextCategory = [];
 	if (state.manualHold !== true) {
@@ -920,7 +980,8 @@ function pickQuestion () {
 		}
 		if (!question) {
 			console.log('no question', question, state.currentCat);
-			question = getNewQuestion(pickRandomCat());
+			category = pickRandomCat();
+			question = getNewQuestion(category);
 			//return;
 		}
 		// if (test) {
@@ -936,11 +997,15 @@ function pickQuestion () {
 		// 	question = ["So if there is anything that you’d like to tell me right away go ahead. I’m listening.","HELLO5a_T04_BEST","length","","HELLO5b_T01_BEST","intro","","","","","","","","","","","","","","","","","","","","","",""];
 		// 	test = false;
 		// }
+		// if (test) {
+		// 	question = ["I want to hear about a dream that you had that feels important to you.","DREAM1a_T01_BEST","length","","DREAM1b_T01_BEST","belief","superlong","","freud","freudian","analysis","analyze","psychiatrist","shrink","psychologist","counseling","therapy","therapist","afraid","fears","fear","phobia","anxiety","worry","worried","anxious","",""];
+		// 	test = false;
+		// }
 		if (question) {
 			updateState(question);
 			if (!question[2] && state.ending)
 				end = true;
-			playQuestion(question[1], end);
+			playQuestion(question, end);
 		} else {
 			//play a staller and pick a random question
 		}
@@ -956,89 +1021,6 @@ var waitingPeriods = {
 	'wrong': 15000,
 	'hurt': 15000
 };
-
-// function detectSpeaking(threshold, duration) {
-
-// 	if (typeof threshold === 'undefined')
-// 		// threshold = state.silenceThreshold || 40;
-// 		threshold = state.SilenceThreshold || 200;
-// 	if (typeof duration === 'undefined')
-// 		duration = 1;
-// 	if (state.questionsAsked.length < 4 || state.categories.indexOf(state.currentCat) === -1)
-// 		duration = 0.5;
-// 	else
-// 		duration = 3;
-// 	var activated = Date.now(), line;
-// 	console.log("IN DETECT SPEAKING; threshold, duration, category:", threshold, duration, state.currentCat);
-// 	speaking = exec('./threshold_detector/threshold_detector.py', [threshold, duration, 'gt']);
-// 	speaking.stdout.on('data', function (data) {
-// 		strData = data.toString();
-// 		if (strData.indexOf('Threshold detected') !== -1) {
-// 			line = "THERE WAS SPEAKING" + state.silenceThreshold;
-// 			console.log(line);
-// 			computerData.write(line + "\n\n");
-// 			// launchSilences(state.silenceThreshold);
-// 			state.checkSilence = true;
-// 			state.startedSpeaking = Date.now();
-// 			// launchSilences();
-// 			speaking.kill();
-// 		} else if (!state.checkSilence && ((duration >= 2 && waitingPeriods[state.currentCat] && Date.now() - activated >= waitingPeriods[state.currentCat]) || Date.now() - activated >= 10000)) {
-// 			line = "WAITED FOR ALLOTTED TIME";
-// 			computerData.write(line + "\n\n");
-// 			console.log("WAITED FOR ALLOTTED TIME");
-// 			// pickQuestion();
-// 			state.checkSilence = true;
-// 			speaking.kill();
-// 		}
-// 	});
-
-// }
-
-// function launchSilences(threshold, duration) {
-// 	// silenceUtils = sd.utils;
-// 	state.checkSilence = true;
-// 	var options = [];
-// 	if (threshold) {
-// 		if (typeof duration === 'undefined')
-// 			options = [threshold];
-// 		else
-// 			options = [threshold, duration];
-// 	}
-// 	silences = exec('./threshold_detector/threshold_detector.py', options);
-// 	silences.stdout.on('data', function (data) {
-// 		// console.log(data);
-// 		var strData = data.toString();
-// 		if (strData.indexOf('volume threshold set at:') !== -1) {
-// 			console.log(data.toString(), 'here is the right thing', typeof strData, strData);
-// 			if (!state.silenceThreshold) {
-// 				strData = strData.replace(/[a-zA-Z :]/g, '');
-// 				state.silenceThreshold = Number(strData.split('\n')[0]);
-// 				console.log('starting recorder.....', state.silenceThreshold);
-// 			}
-// 			pickQuestion();
-// 		} else if (strData.indexOf('Threshold detected') !== -1) {
-// 			console.log("THERE WAS A SILENCE");
-// 			console.log(state.checkSilence, Date.now() - state.startedSpeaking, 'speaking');
-// 			// if (state.checkSilence && Date.now() - state.startedSpeaking >= 3500) {
-// 			if (state.checkSilence) {
-// 				pickQuestion();
-// 			} else {
-// 				console.log('waiting for the person to speak');
-// 			}
-
-// 		} else if (strData.indexOf('Threshold time: ') !== -1) {
-// 			state.silences.push(Number(strData.slice(16)));
-// 		}
-// 	});
-
-// 	silences.stderr.on('data', function (err) {
-// 		console.log('error', err);
-
-// 	});
-// 	silences.on('close', function (code) {
-// 		console.log('silences closed', code);
-// 	})
-// }
 
 function launchRec() {
 	console.log('launching recorder');
