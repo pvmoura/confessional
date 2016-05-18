@@ -16,7 +16,7 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 		return;
 	}
 	categories = categories || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst', 'belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'];
-	nonSemanticCats = nonSemanticCats || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'staller', 'followup', 'booth1', 'booth2', 'booth3', 'segue', 'verbalnod', 'encouragement', 'empathy'];
+	nonSemanticCats = nonSemanticCats || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'staller', 'followup', 'booth1', 'booth2', 'booth3', 'segue', 'verbalnod', 'encouragement', 'empathy', 'tellmemore'];
 
 	var questions = [], that = this, utils;
 
@@ -30,7 +30,10 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 		populateQuestions: function (filename) {
 			var reader = csv.createCsvFileReader(filename);
 			reader.on('data', function(data) {
-				questions.push(data);
+				if (questions.filter(function (elem) { return data[1] === elem[1]; }).length === 0)
+					questions.push(data);
+				else
+					console.log(data[1]);
 			});
 			reader.on('error', function (err) {
 				module.exports.emit('error', err);
@@ -52,7 +55,7 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 		},
 		filterByCategory: function (cat, qs) {
 			return generalFilter(function (elem) {
-				return elem[5] === cat;
+				return elem.slice(5,8).indexOf(cat) !== -1;
 			}, qs);
 		},
 		filterOutNonSemantics: function (qs) {
@@ -67,8 +70,12 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 		},
 		findQuestionsByFileRegEx: function (regex, qs) {
 			return generalFilter(function (q) {
-				if (q[1].match(regex) !== null)
-					return true;
+				return q[1].match(regex) !== null;
+			}, qs);
+		},
+		filterOutByRegEx: function (regex, qs) {
+			return generalFilter(function (q) {
+				return q[1].match(regex) === null;
 			}, qs);
 		},
 		pickQuestionFromArray: function (qs) {
