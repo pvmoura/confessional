@@ -72,7 +72,6 @@ module.exports.createTranscriber = function (options, callback) {
 				this.filename = this.makeFilename();
 			var that = this;
 			watcher.on('change', function (event, file) {
-				console.log(file, "THIS IS THE FILENAME", that.filename, dir + "/" + file);
 				if (dir + "/" + file === that.filename) {
 					console.log("starting transcription");
 					startTranscriber(that.filename, that.watsonObj);

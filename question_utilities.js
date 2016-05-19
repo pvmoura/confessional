@@ -86,7 +86,8 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 			var filtered = generalFilter(function (elem) {
 				return elem[1] === filename;
 			}, qs);
-			return filtered.length === 1 ? filtered[0] : null;
+			console.log(filtered, filename);
+			return filtered.length > 0 ? filtered[0] : null;
 		},
 		filterOutAsked: function (asked, qs) {
 			return generalFilter(function (elem) {

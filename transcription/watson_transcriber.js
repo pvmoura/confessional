@@ -32,7 +32,7 @@ module.exports.createStream = function () {
   recognizeStream.on('error', function(error) {
     var now = new Date();
     // errorLogs.write(now.toString() + ": " +  error.toString());
-    console.log(now.toString() + ": " + error.toString());
+    // console.log(now.toString() + ": " + error.toString());
     recognizeStream.emit('watsonError', error);
   });
 

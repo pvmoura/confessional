@@ -63,7 +63,8 @@ var state = {
 	lastTellmemore: null,
 	tellmemoreAsked: [],
 	overrideCat: null,
-	startedEnd: false
+	startedEnd: false,
+	supersuperlongs: [],
 };
 sd.on('ready', function (silenceThreshold) {
 	state.silenceThreshold = silenceThreshold;
@@ -81,6 +82,10 @@ function restartRecent () {
 	var answerData = JSON.parse(fs.readFileSync(lastInterview + "/answer_data.txt", { encoding: 'utf-8' }));
 	console.log(answerData, 'answerData');
 	state.answerData = answerData.length && answerData.length > 0 ? answerData : [];
+	state.usedCats = state.answerData.map(function (elem) {
+		return elem.categoryAsked;
+	});
+	console.log(state.usedCats, "Used cats");
 	var elapsedTime;
 	questions = questions.map(function (elem) {
 		var info = elem.split(':');
@@ -99,6 +104,7 @@ function restartRecent () {
 	console.log('restarting', state.questionsAsked, 'elapsedTime:', elapsedTime);
 	state.startTime = Date.now() - elapsedTime;
 	state.hasIntroed = true;
+
 
 	console.log(questions);
 	// process.kill(process.pid);
@@ -165,7 +171,8 @@ rl.on('line', function (cmd, key) {
   	state.interviewLength += 300000;
   } else if (cmd === 's') {
   	console.log("Skipping this question");
-  	pickQuestion();
+  	// pickQuestion();
+  	sd.utils.forceSilence();
   } else if (cmd === 'v') {
   	console.log("Saying a verbal nod");
   	playVerbalNod();
@@ -257,6 +264,25 @@ function getEnd (options) {
 	return utils['pickQuestionFromArray'](possQuestions);
 }
 
+function getTellMeMore () {
+	var filtered = utils.filterByCategory('tellmemore'), question;
+	console.log(filtered.length);
+	if (filtered.length === state.tellmemoreAsked.length)
+		state.tellmemoreAsked = [];
+	// if (state.lastTellmemore !== null)
+	// 	filtered = utils.filterOutByRegEx(new RegExp(state.lastTellmemore.slice(0,4)), filtered);
+	
+	console.log(filtered);
+	filtered = utils.filterOutAsked(state.tellmemoreAsked, filtered);
+
+	question = utils.pickQuestionFromArray(filtered);
+	if (question && question[1]) {
+		state.tellmemoreAsked.push(question[1]);
+		return question;
+	}
+	return "noFollowUp";
+
+}
 
 // currentQuestion, as per database is something like:
 // [text, filename, typefollow, followfile(default/short/yes), followfile(no/long), tag1, tag2, tag3, keywords]
@@ -286,8 +312,13 @@ function getFollowUp (options) {
 	}
 	// console.log(state.currentQuestion, followFile, "FOLLOW FILE");
 	if (state.currentQuestion && state.currentQuestion[followFile]) {
-		console.log(utils.findQuestionByFilename(state.currentQuestion[followFile]), "HJELLDAI");
-		return utils.findQuestionByFilename(state.currentQuestion[followFile]);
+		console.log(state.currentQuestion[followFile], "Next file");
+		if (state.currentQuestion[followFile] === 'canyoutellmemore') {
+			return getTellMeMore();
+		} else
+			return utils.findQuestionByFilename(state.currentQuestion[followFile]);
+		// console.log(utils.findQuestionByFilename(state.currentQuestion[followFile]), "HJELLDAI");
+		
 	} else {
 		console.log("no followUp", state.currentQuestion);
 		return 'noFollowUp';
@@ -382,7 +413,7 @@ function pickRandomCat() {
 		console.log(usedCatshist);
 		for (var key in usedCatshist) {
 			if (usedCatshist.hasOwnProperty(key)) {
-				if (usedCatshist[key] < 3) {
+				if (usedCatshist[key] < 5) {
 					filtered.push(key);
 				}
 			}
@@ -579,14 +610,27 @@ function countInstances (arr, instance) {
 		return elem === instance;
 	}).length;
 }
-state.usedResponses = [];
 
 function isOutlier (arr) {
 	var average = averageResponseLength(state.answerData);
+	// if (arr.filter) {
 	var filtered = arr.filter(function (elem) {
 		elem.speakingLength > average * 1.5;
 	});
+
 	return filtered.length > 0 ? arr[0] : null;
+}
+
+function isPresent (ident, arr) {
+	return arr.filter(function (elem) {
+		return elem[1] === ident;
+	}).length > 0;
+}
+
+function getSuperSuperLong () {
+	var filtered = utils.filterBysupersuperlong();
+	filtered = utils.filterOutAsked(state.supersuperlongs, filtered);
+	return utils.pickQuestionFromArray(filtered);
 }
 
 function getSemanticNew () {
@@ -607,16 +651,36 @@ function getSemanticNew () {
 	console.log(lastThreeCats, lastThreeOnlyCats, lastThree, category);
 	console.log("MAX CAT", maxCat, maxNonCat);
 	var temp;
-	var last = state.answerData[-1];
-	if (last && isOutlier(last)) {
+	var last = state.answerData[state.answerData.length - 1];
+	var sortedByLength = sortByAnswerLength();
+	longest = longestResponse();
+	if (Date.now() - state.startTime >= state.interviewLength / 2) {
+		if (last && longest && last.question === longest.question) {
+			supersuperlong = getSuperSuperLong();
+			if (supersuperlong) {
+				state.supersuperlongs.push(supersuperlong[1]);
+				return supersuperlong;
+			}
+		}
+	} else if (Date.now() - state.startTime >= 3 * (state.interviewLength / 4)) {
+		if (last && longest && isPresent(last.question, sortedByLength.slice(0,4))) {
+			supersuperlong = getSuperSuperLong();
+			if (supersuperlong) {
+				state.supersuperlongs.push(supersuperlong[1]);
+				return supersuperlong;
+			}
+		}
+	}
+	console.log(last, "LAST");
+	if (last && isOutlier([last])) {
 		category = last.topCat ? last.topCat[0] : null;
 	}
 
-	if (!category && (isOutlier(lastThreeNonCat) || maxNonCat > maxCat)) {
+	if ((isOutlier(lastThreeNonCat) || maxNonCat > maxCat)) {
 		var highest = highestCatCount(lastThreeNonCat);
 		console.log(highest, "IN HIGHEST");
-		if (highest && highest.topCat)
-			category = highest.topCat[0];
+		if (highest && highest.topCat && highest.topCat[0])
+			return highest.topCat[0];
 	}
 	if (!category || countInstances(lastThreeOnlyCats, category) >= 3) {
 		// how do we pick new category
@@ -638,16 +702,17 @@ function getSemanticNew () {
 	if (!category) {
 		temp = getNewUnusedCategory();
 		category = temp ? temp[0] : null;
-	} else if (countInstances(lastThreeOnlyCats, category) > 3) {
-		// pick a new category
-		console.log('in countInstances');
-		temp = getNewUnusedCategory();
-		category = temp ? temp[0] : null;
-	} else if (lastThreeCats.length > 1 && (averageResponseLength(lastThreeCats) < averageResponseLength())) {
-		console.log('in averageResponseLength');
-		temp = getNewUnusedCategory();
-		category = temp ? temp[0] : null;
-	}
+	} 
+	// else if (countInstances(lastThreeOnlyCats, category) > 3) {
+	// 	// pick a new category
+	// 	console.log('in countInstances');
+	// 	temp = getNewUnusedCategory();
+	// 	category = temp ? temp[0] : null;
+	// } else if (lastThreeCats.length > 1 && (averageResponseLength(lastThreeCats) < averageResponseLength())) {
+	// 	console.log('in averageResponseLength');
+	// 	temp = getNewUnusedCategory();
+	// 	category = temp ? temp[0] : null;
+	// }
 	console.log(category, 'cat after if statement');
 	if (!category) {
 		category = pickRandomCat();
@@ -687,8 +752,22 @@ function consolidateArrs(orig, newArr) {
 	return orig;
 }
 
+function findSemantic (question) {
+	question = question.slice(5, 8).filter(function (elem) {
+		return state.semanticCats.indexOf(elem) !== -1;
+	});
+	return question.length > 0 ? question[0] : null;
+}
+
+function isFollowUp (question) {
+	question = question.slice(5, 8).filter(function (elem) {
+		return elem.indexOf('followup') !== -1;
+	});
+	return question.length > 0;
+}
+
 function updateState (question) {
-	var oldCat = state.currentCat, sorted;
+	var oldCat = state.currentCat, sorted, semanticCat;
 	state.inTransition = false;
 	state.currentQuestion = question;
 
@@ -701,18 +780,25 @@ function updateState (question) {
 
 	state.nextCategory = [];
 	state.currTrans = [];
-	if (question && question[5]) {
-		state.currentCat = question[5];
-		state.usedCats.push(question[5]);
+	semanticCat = findSemantic(question);
+	if (question && semanticCat) {
+		state.currentCat = semanticCat;
+		state.usedCats.push(semanticCat);
+	} else if (question && isFollowUp(question)) {
+		state.currentCat = oldCat;
+		state.usedCats.push(oldCat);
 	} else
 		state.currentCat = null;
 	// console.log(oldCat, question[5]);
 	console.log(state.questionsInCat, "CAT QUESTIONS");
-	if (oldCat && oldCat === question[5])
+	if (state.currentCat === oldCat)
 		state.questionsInCat++;
+	else {
+		state.inTransition = true;
+	}
 	if (state.questionsInCat >= 2) {
 		state.questionsInCat = 0;
-		state.currentCat = null;
+		// state.currentCat = null;
 		state.inTransition = true;
 	}
 }
@@ -741,7 +827,7 @@ function makeWatsonCallback(currQ) {
 			// if (transcriber.active && transcriber.restart) {
 				// transcriber.startTranscription();
 			// } else {
-				console.log("Watson is done");
+				console.log("Watson finished");
 			// }
 		} else {
 			var alternatives = data.results[0].alternatives[0];
@@ -808,8 +894,10 @@ function getDiff (start) {
 }
 
 function boothQuestion () {
+	// if (Date.now() - state.startTime <= 1000*60*10)
+	// 	state.inTransition = false;
 	if (Date.now() - state.startTime <= 1000*60*10)
-		state.inTransition = false;
+		return false;
 	return state.inTransition && state.boothQuestions < 2 && Date.now() % state.boothQuestions === 0;
 }
 
