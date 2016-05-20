@@ -1,26 +1,26 @@
-module.exports.sortDictByVal = function (dict, sortFun) {
-	sortFun = sortFun || module.exports.compForArrofArrs(1);
-	var result = module.exports.items(dict);
+var sortDictByVal = function (dict, sortFun) {
+	var result, sortFun = sortFun || compForArrofArrs(1);
+	result = items(dict);
 	result.sort(sortFun);
 	return result;
 };
 
-module.exports.sum = function (arr) {
+var sum = function (arr) {
 	return arr.reduce(function (prev, curr, arr, i) {
 		curr = Number(curr);
 		return isNaN(curr) ? prev : curr + prev;
 	}, 0);
 };
 
-module.exports.average = function (arr) {
+var average = function (arr) {
 	arr = arr.filter(function (elem) {
-		return !isNaN(elem);
+		return typeof elem !== 'object' && !isNaN(elem);
 	});
-	return arr.length > 0 ? module.exports.sum(arr) / arr.length : null;
+	return arr.length > 0 ? sum(arr) / arr.length : null;
 };
 
 
-module.exports.compForArrofArrs = function (sortKey) {
+var compForArrofArrs = function (sortKey) {
 	if (typeof sortKey === 'undefined')
 		sortKey = 1;
 	return function (a, b) {
@@ -33,7 +33,7 @@ module.exports.compForArrofArrs = function (sortKey) {
 	};
 };
 
-module.exports.keys = function (dict) {
+var keys = function (dict) {
 	var keys = [];
 	for (var key in dict) {
 		if (dict.hasOwnProperty(key))
@@ -42,7 +42,7 @@ module.exports.keys = function (dict) {
 	return keys;
 };
 
-module.exports.vals = function (dict) {
+var vals = function (dict) {
 	var vals = [];
 	for (var key in dict) {
 		if (dict.hasOwnProperty(key))
@@ -51,7 +51,7 @@ module.exports.vals = function (dict) {
 	return vals;
 };
 
-module.exports.items = function (dict) {
+var items = function (dict) {
 	var items = [];
 	for (var key in dict) {
 		if (dict.hasOwnProperty(key))
@@ -60,7 +60,7 @@ module.exports.items = function (dict) {
 	return items;
 }
 
-module.exports.count = function (arr) {
+var count = function (arr) {
 	var counts = {};
 	arr.forEach(function (elem) {
 		if (typeof counts[elem] === 'undefined')
@@ -70,7 +70,7 @@ module.exports.count = function (arr) {
 	return counts;
 };
 
-module.exports.consolidateArrs = function (orig, newArr) {
+var consolidateArrs = function (orig, newArr) {
 	newArr.forEach(function (elem) {
 		present = false;
 		orig = orig.map(function (origElem) {
@@ -86,8 +86,43 @@ module.exports.consolidateArrs = function (orig, newArr) {
 	return orig;
 };
 
-module.exports.countInstances = function (arr, instance) {
+var countInstances = function (arr, instance) {
 	return arr.filter(function (elem) {
 		return elem === instance;
 	}).length;
 };
+
+var standardDeviation = function (arr) {
+	if (typeof arr === 'undefined' || typeof arr.filter !== 'function')
+		throw new Error('Need an array');
+	arr = arr.filter(function (elem) {
+		var num = Number(elem);
+		return typeof elem !== 'object' && !isNaN(num);
+	});
+	
+	if (!arr.length || arr.length === 1)
+		throw new Error('Need an array with more than one number');
+	var arrAverage = average(arr);
+
+	var sumSquaredVariances = sum(arr.map(function (elem) {
+		var diff = elem - arrAverage;
+		return Math.pow(diff, 2);
+	}));
+	
+	return Math.sqrt(sumSquaredVariances / (arr.length - 1));
+
+}
+
+module.exports = {
+	sortDictByVal: sortDictByVal,
+	sum: sum,
+	average: average,
+	compForArrofArrs: compForArrofArrs,
+	keys: keys,
+	vals: vals,
+	items: items,
+	count: count,
+	consolidateArrs: consolidateArrs,
+	countInstances: countInstances,
+	standardDeviation: standardDeviation
+}

@@ -141,4 +141,45 @@ describe("utilities", function () {
 			assert.equal(utils.countInstances(a, 'e'), 0);
 		});
 	});
+	describe("#standardDeviation", function () {
+		it("should correctly calculate the standard deviation of an array of numbers", function () {
+			var a = [10, 8, 10, 8, 8, 4];
+			assert.equal(utils.standardDeviation(a), 2.1908902300206643);
+		});
+		it("should work with multi-typed arrays", function () {
+			var a = [10, 8, 10, 8, 8, 4, 'not', 'a', 'num', [], {}];
+			assert.equal(utils.standardDeviation(a), 2.1908902300206643);
+		});
+		it("should throw an error if given a multi-typed array with no numbers", function () {
+			try {
+				utils.standardDeviation(['a', 'b', 'c', []]);
+			} catch (e) {
+				assert.equal(e.message, 'Need an array with more than one number');
+			}
+		});
+		it("should throw an error when given an array with one or fewer elements", function () {
+			try {
+				utils.standardDeviation([]);
+			} catch (e) {
+				assert.equal(e.message, 'Need an array with more than one number');
+			}
+			try {
+				utils.standardDeviation([1]);
+			} catch (e) {
+				assert.equal(e.message, 'Need an array with more than one number');
+			}
+		});
+		it("should throw an error when not given an array", function () {
+			try {
+				utils.standardDeviation();
+			} catch (e) {
+				assert.equal(e.message, 'Need an array');
+			}
+			try {
+				utils.standardDeviation({});
+			} catch (e) {
+				assert.equal(e.message, 'Need an array');
+			}
+		});
+	});
 });
