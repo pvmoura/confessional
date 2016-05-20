@@ -1,11 +1,4 @@
 var execFile = require('child_process').execFile;
-var state = {
-	checkSilence: true,
-	silenceThreshold: null,
-	startedSpeaking: null,
-	categories: [],
-	silences: []
-};
 var EE = require('events');
 var duration = 3500, dormant = false, hold = false, silencePeriods = [],
 	speakingPeriods = [], startTime, holdingPeriod = null, customWait = null, defaultDuration = null;
@@ -39,7 +32,8 @@ function createDetector (threshold, reset) {
 	}
 
 	detector = execFile('./threshold_detector/threshold_detector.py', options);
-	console.log('Sampling silence threshold, please be quiet');
+	if (!threshold)
+		console.log('Sampling silence threshold, please be quiet');
 	detector.stdout.on('data', function (data) {
 		var strData = data.toString().trim(), start;
 		if (strData.toLowerCase().indexOf('threshold set at:') !== -1) {
@@ -85,20 +79,14 @@ function createDetector (threshold, reset) {
 
 			}
 			else if (strData === '1') {
-				// intervals.map(function (interval) {
-				// 	clearInterval(interval);
-				// });
-				// intervals = [];
-
 				clearIntervals();
-
 				interval = null;
-
-
-				// if (silencePeriod)
-				silencePeriods.push(Date.now() - silencePeriod);
-				if (speakingPeriods.length <= 1){
-					console.log("HELO");
+				if (silencePeriod)
+					silencePeriods.push(Date.now() - silencePeriod);
+				else
+					silencePeriods.push(Date.now() - startTime);
+				if (speakingPeriods.length <= 1) {
+					console.log("started speaking");
 					getDuration(holdingPeriod, customWait, defaultDuration);
 				}
 				speakingPeriod = Date.now();
@@ -140,7 +128,7 @@ module.exports.utils = {
 	threshold: null,
 	start: function (threshold) {
 		console.log("THE DETECTOR IS", this.detector ? this.detector.pid : null);
-		if (!this.detector)
+		if (!this.detector || this.detector.killed === true)
 			this.detector = createDetector.apply(this, arguments);
 		startTime = Date.now();
 		dormant = false;
