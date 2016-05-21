@@ -21,6 +21,7 @@ sd.on('silencePeriod', function (data) {
 	state.currSilence = data.silences.reduce(function (c, p, a, i) {
 		return isNaN(c) ? p : p + c;
 	}, 0);
+	state.playedVerbalNod = false;
 	console.log(state.currSpeaking, state.currSilence);
 	pickQuestion();
 });
@@ -29,6 +30,14 @@ sd.utils.setOptions({
 	customWait: 2500,
 	defaultDuration: 3500
 })
+sd.on('halfSilence', function () {
+	console.log("IN HALF SILENCE");
+	if (state.currentQuestion && state.currentQuestion.indexOf('shortnod') !== -1 && state.playedVerbalNod) {
+		state.playedVerbalNod = true;
+		playVerbalNod();
+	}
+});
+
 sd.utils.start();
 const readline = require('readline');
 var state = {
@@ -65,6 +74,8 @@ var state = {
 	overrideCat: null,
 	startedEnd: false,
 	supersuperlongs: [],
+	playedChildhoodInteractive: false,
+	playedVerbalNod: false
 };
 sd.on('ready', function (silenceThreshold) {
 	state.silenceThreshold = silenceThreshold;
@@ -79,13 +90,21 @@ sd.on('resetThreshold', function (silenceThreshold) {
 function restartRecent () {
 	var lastInterview = fs.readFileSync('last_interview.txt', { encoding: 'utf-8' }).trim();
 	var questions = fs.readFileSync(lastInterview + "/question_order.txt", { encoding: 'utf-8' }).split('\n');
-	var answerData = JSON.parse(fs.readFileSync(lastInterview + "/answer_data.txt", { encoding: 'utf-8' }));
-	console.log(answerData, 'answerData');
-	state.answerData = answerData.length && answerData.length > 0 ? answerData : [];
-	state.usedCats = state.answerData.map(function (elem) {
-		return elem.categoryAsked;
+	fs.readFile(lastInterview + "/answer_data.txt", { encoding: 'utf-8' }, function (err, data) {
+		if (err) { console.log("ERROR READING ANSWER DATA"); }
+		else {
+			var d = JSON.parse(data);
+			state.answerData = d.length && d.length > 0 ? d : [];
+			state.usedCats = state.answerData.map(function (elem) {
+				return elem.categoryAsked;
+			});
+
+			console.log(state.usedCats, "Used cats");
+		}
 	});
-	console.log(state.usedCats, "Used cats");
+	// console.log(answerData, 'answerData');
+	// state.answerData = answerData.length && answerData.length > 0 ? answerData : [];
+
 	var elapsedTime;
 	questions = questions.map(function (elem) {
 		var info = elem.split(':');
@@ -97,13 +116,19 @@ function restartRecent () {
 	state.questionsAsked = questions.map(function (elem) {
 		return elem.identifier;
 	});
+	
 	elapsedTime = Math.max.apply(null, questions.map(function (elem) {
 		var time = Number(elem.time);
 		return isNaN(time) ? 0 : time;
 	}));
-	console.log('restarting', state.questionsAsked, 'elapsedTime:', elapsedTime);
+	if (elapsedTime < 0)
+		elapsedTime = 0;
 	state.startTime = Date.now() - elapsedTime;
-	state.hasIntroed = true;
+	if (state.questionsAsked.length > 6 && elapsedTime === 0)
+		state.startTime = Date.now() - 900000;
+	console.log('restarting', state.questionsAsked, 'elapsedTime:', elapsedTime);
+	if (state.questionsAsked.length > 0)
+		state.hasIntroed = true;
 
 
 	console.log(questions);
@@ -118,6 +143,7 @@ var intidentifier;
 function bookkeeping () {
 	intIdentifier = process.env.transcriptDir + 'interview-', now = Date.now();
 	identifier = createIdentifier(state.startTime);
+	console.log(intIdentifier, identifier, state.startTime);
 	// state.startTime = now;
 	intIdentifier += identifier;
 	fs.mkdirSync(intIdentifier);
@@ -135,6 +161,7 @@ function bookkeeping () {
 			question_order.write(q + ":\n")
 		});
 	}
+	fs.writeFile(intIdentifier + '/answer_data.txt', JSON.stringify(state.answerData));
 
 	fs.writeFileSync('last_interview.txt', intIdentifier);
 	question_order.on('error', function (err) {
@@ -384,11 +411,13 @@ function getPersonality (data) {
 
 function getNewQuestion (category, memory) {
 	var filtered = utils.filterByCategory(category);
+	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
 	if (memory && (category === 'childhood' || category === 'love')) {
 		filtered = utils.filterBysegue(filtered);
 	} else {
 		console.log("QUESTIONS IN CAT", state.questionsInCat);
 		console.log(state.usedCats, category, "CATEGORY AND USED CATS");
+		console.log(countInstances(state.usedCats, category), state.usedCats, "COUNT INSTANCES");
 		if (countInstances(state.usedCats, category) === 0) {
 			filtered = utils.filterByescapehatch(filtered);
 		} else {
@@ -396,7 +425,11 @@ function getNewQuestion (category, memory) {
 		}
 		filtered = utils.filterOutfollowup(filtered);
 		filtered = utils.filterOutNonSemantics(filtered);
-		filtered = utils.filterOutAsked(state.questionsAsked, filtered);
+		// console.log(filtered);
+
+		// console.log(filtered, "FILTERED AFTER GET NEW QUESTION");
+		if (filtered.length === 0)
+			state.usedCats = ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'];
 	}
 	// console.log('new question', filtered, state.questionsInCat);
 	return utils.pickQuestionFromArray(filtered);
@@ -413,7 +446,7 @@ function pickRandomCat() {
 		console.log(usedCatshist);
 		for (var key in usedCatshist) {
 			if (usedCatshist.hasOwnProperty(key)) {
-				if (usedCatshist[key] < 5) {
+				if (usedCatshist[key] < 8) {
 					filtered.push(key);
 				}
 			}
@@ -570,7 +603,7 @@ function getNewCatBasedOnTopLengthAndCat (exclude, answerData) {
 	var ranks = {}, sortedRanks;
 	exclude = exclude || state.usedCats;
 	questionsByLength.map(function (elem, i) {
-		if (elem.topCat && countInstances(exclude, elem.topCat[0]) <= 5) {
+		if (elem.topCat) { //&& countInstances(exclude, elem.topCat[0]) <= 5) {
 
 			ranks[elem.question] = i;
 			for (var j = 0; j < questionsByTopCat.length; j++) {
@@ -585,7 +618,7 @@ function getNewCatBasedOnTopLengthAndCat (exclude, answerData) {
 	category = answerData.filter(function (elem) {
 		return sortedRanks[0] ? elem.question === sortedRanks[0][0] : null;
 	});
-	return category[0] ? category[0].topCat[0] : null;
+	return category[0] && category[0].topCat ? category[0].topCat[0] : null;
 }
 
 // defaults to long (minute+) responses
@@ -611,13 +644,23 @@ function countInstances (arr, instance) {
 	}).length;
 }
 
-function isOutlier (arr) {
+function isOutlier (arr, thresh) {
+	if (typeof thresh === 'undefined')
+		thresh = 1.5;
 	var average = averageResponseLength(state.answerData);
 	// if (arr.filter) {
 	var filtered = arr.filter(function (elem) {
-		elem.speakingLength > average * 1.5;
+		elem.speakingLength > average * thresh;
 	});
 
+	return filtered.length > 0 ? arr[0] : null;
+}
+
+function isAboveAverage (arr) {
+	var average = averageResponseLength(state.answerData);
+	var filtered = arr.filter(function (elem) {
+		elem.speakingLength > average;
+	});
 	return filtered.length > 0 ? arr[0] : null;
 }
 
@@ -629,8 +672,13 @@ function isPresent (ident, arr) {
 
 function getSuperSuperLong () {
 	var filtered = utils.filterBysupersuperlong();
+	console.log(filtered);
 	filtered = utils.filterOutAsked(state.supersuperlongs, filtered);
 	return utils.pickQuestionFromArray(filtered);
+}
+
+function getChildhoodInteractive () {
+	return utils.findQuestionByFilename("AFFECTEDYOUNG_T03_BEST");
 }
 
 function getSemanticNew () {
@@ -654,8 +702,9 @@ function getSemanticNew () {
 	var last = state.answerData[state.answerData.length - 1];
 	var sortedByLength = sortByAnswerLength();
 	longest = longestResponse();
-	if (Date.now() - state.startTime >= state.interviewLength / 2) {
-		if (last && longest && last.question === longest.question) {
+	if (Date.now() - state.startTime >= state.interviewLength / 3 && state.supersuperlongs.length === 0) {
+		// console.log(last.question, isPresent(last.question, sortedByLength.slice(0,8)));
+		if (last && isOutlier([last], 1.25)) {
 			supersuperlong = getSuperSuperLong();
 			if (supersuperlong) {
 				state.supersuperlongs.push(supersuperlong[1]);
@@ -663,12 +712,20 @@ function getSemanticNew () {
 			}
 		}
 	} else if (Date.now() - state.startTime >= 3 * (state.interviewLength / 4)) {
-		if (last && longest && isPresent(last.question, sortedByLength.slice(0,4))) {
+		if (last && isPresent(last.question, sortedByLength.slice(0,4))) {
 			supersuperlong = getSuperSuperLong();
 			if (supersuperlong) {
 				state.supersuperlongs.push(supersuperlong[1]);
 				return supersuperlong;
 			}
+		}
+	}
+	if (last && last.speakingLength >= 90000 && last.topCat && last.topCat[0] === 'childhood') {
+		console.log("TRIGGER CHILDHOOD INTERACTIVE QUESTION");
+		if (!state.playedChildhoodInteractive) {
+			return getChildhoodInteractive();
+		} else {
+			console.log("Already played childhood interactive question");
 		}
 	}
 	console.log(last, "LAST");
@@ -680,7 +737,7 @@ function getSemanticNew () {
 		var highest = highestCatCount(lastThreeNonCat);
 		console.log(highest, "IN HIGHEST");
 		if (highest && highest.topCat && highest.topCat[0])
-			return highest.topCat[0];
+			return getNewQuestion(highest.topCat);
 	}
 	if (!category || countInstances(lastThreeOnlyCats, category) >= 3) {
 		// how do we pick new category
@@ -693,9 +750,9 @@ function getSemanticNew () {
 		if (state.answerData.length > 0 && lastTopCat && lastTopCat !== category) {
 			console.log("IN CATEGORY PICKING");
 			category = state.answerData[state.answerData.length - 1].topCat ? state.answerData[state.answerData.length - 1].topCat[0] : null;
-		} else if (averageResponseLength(lastThree) > averageResponseLength()) 
-			category = getNewCatBasedOnTopLengthAndCat(state.usedCats, lastThree);
-		else
+		// } else if (averageResponseLength(lastThree) > averageResponseLength()) 
+			// category = getNewCatBasedOnTopLengthAndCat(state.usedCats, lastThree);
+		} else
 			category = getNewCatBasedOnTopLengthAndCat(state.usedCats);
 	}
 	console.log(category, 'cat after top length and cat');
@@ -753,17 +810,33 @@ function consolidateArrs(orig, newArr) {
 }
 
 function findSemantic (question) {
-	question = question.slice(5, 8).filter(function (elem) {
-		return state.semanticCats.indexOf(elem) !== -1;
-	});
-	return question.length > 0 ? question[0] : null;
+	if (typeof question.slice !== 'function')
+		return null;
+	question = question.slice(5,8);
+	if (typeof question.filter === 'function') {
+		question = question.filter(function (elem) {
+			return state.semanticCats.indexOf(elem) !== -1;
+		});
+		return question.length > 0 ? question[0] : null;
+	}
+	return null;
 }
 
 function isFollowUp (question) {
-	question = question.slice(5, 8).filter(function (elem) {
-		return elem.indexOf('followup') !== -1;
-	});
-	return question.length > 0;
+	if (typeof question.slice !== 'function')
+		return null;
+	question = question.slice(5,8);
+	if (typeof question.filter === 'function') {
+		question = question.filter(function (elem) {
+			return elem.indexOf('followup') !== -1;
+		});
+		return question.length > 0 ? question[0] : null;
+	}
+	return null;
+	// question = question.slice(5, 8).filter(function (elem) {
+	// 	return elem.indexOf('followup') !== -1;
+	// });
+	// return question.length > 0;
 }
 
 function updateState (question) {
@@ -780,13 +853,16 @@ function updateState (question) {
 
 	state.nextCategory = [];
 	state.currTrans = [];
-	semanticCat = findSemantic(question);
-	if (question && semanticCat) {
-		state.currentCat = semanticCat;
-		state.usedCats.push(semanticCat);
+	// semanticCat = findSemantic(question);
+	if (question && question[5]) {
+		state.currentCat = question[5];
+		state.usedCats.push(question[5]);
 	} else if (question && isFollowUp(question)) {
 		state.currentCat = oldCat;
 		state.usedCats.push(oldCat);
+	} else if (question && findSemantic(question)) {
+		state.currentCat = findSemantic(question);
+		state.usedCats.push(findSemantic(question));
 	} else
 		state.currentCat = null;
 	// console.log(oldCat, question[5]);
@@ -875,7 +951,7 @@ function playQuestion(question, end) {
 			sd.utils.setOptions({
 				holdingPeriod: 10000,
 				customWait: 2500,
-				defaultDuration: 3500
+				defaultDuration: 4500
 			});
 			// sd.utils.detector.stdout.emit('data', '0');
 			// detectSpeaking();
@@ -904,6 +980,7 @@ function boothQuestion () {
 test = false;
 function pickQuestion () {
 	// return;
+
 	var answerData;
 	state.checkSilence = false;
 	// sd.utils.toggleDormant();
@@ -947,6 +1024,7 @@ function pickQuestion () {
 			// action = actions['semantic'];
 			console.log(action);
 			question = action( { timeDiff: diff } );
+			// question = actions['semantic']( { timeDiff: diff } );
 			if (question == 'noFollowUp') {
 				if (inIntro(diff))
 					action = actions['nonSemantic'];
