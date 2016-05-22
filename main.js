@@ -32,7 +32,7 @@ sd.utils.setOptions({
 })
 sd.on('halfSilence', function () {
 	console.log("IN HALF SILENCE");
-	if (state.currentQuestion && state.currentQuestion.indexOf('shortnod') !== -1 && state.playedVerbalNod) {
+	if (state.currentQuestion && state.currentQuestion.indexOf('shortnod') !== -1 && !state.playedVerbalNod) {
 		state.playedVerbalNod = true;
 		playVerbalNod();
 	}
@@ -76,7 +76,8 @@ var state = {
 	startedEnd: false,
 	supersuperlongs: [],
 	playedChildhoodInteractive: false,
-	playedVerbalNod: false
+	playedVerbalNod: false,
+	usedAggregateCats: []
 };
 sd.on('ready', function (silenceThreshold) {
 	state.silenceThreshold = silenceThreshold;
@@ -235,6 +236,7 @@ rl.on('error', function (err) {
 
 function playVerbalNod () {
 	var filtered = utils.filterByCategory('verbalnod'), question;
+	console.log("PLAYING A VERBAL NOD");
 	if (filtered.length === state.verbalNodsAsked.length)
 		state.verbalNodsAsked = [];
 	if (state.lastVerbalnod !== null)
@@ -243,7 +245,7 @@ function playVerbalNod () {
 
 	question = utils.pickQuestionFromArray(filtered);
 	
-	console.log(filtered);
+
 	if (question && question[1]) {
 		state.verbalNodsAsked.push(question[1]);
 		state.lastVerbalnod = question[1];
@@ -251,7 +253,7 @@ function playVerbalNod () {
 			if (err) console.log("ERROR WHILE PLAYING");
 		});
 	}
-	console.log(state);
+
 }
 
 function playTellMeMore () {
@@ -708,6 +710,19 @@ function getTopCats (answerData) {
 	return newAnswers;
 }
 
+function aggregateCats (answerData) {
+	answerData = answerData || state.answerData;
+	var cats = {};
+	answerData.forEach(function (elem) {
+		elem.categories.forEach(function (cat) {
+			if (typeof cats[cat[0]] === 'undefined')
+				cats[cat[0]] = 0;
+			cats[cat[0]] += 1;
+		});
+	});
+	return cats;
+}
+
 function getSemanticNew () {
 	// check if current answer data is stronger (i.e. a longer response, strong category, etc., eventually strong confidence level)
 	var category = state.semanticCats.indexOf(state.currentCat) !== -1 ? state.currentCat : null;
@@ -750,6 +765,7 @@ function getSemanticNew () {
 	if (last && last.speakingLength >= 90000 && last.topCat && last.topCat[0] === 'childhood') {
 		console.log("TRIGGER CHILDHOOD INTERACTIVE QUESTION");
 		if (!state.playedChildhoodInteractive) {
+			state.playedChildhoodInteractive = true;
 			return getChildhoodInteractive();
 		} else {
 			console.log("Already played childhood interactive question");
@@ -766,10 +782,23 @@ function getSemanticNew () {
 		if (highest && highest.topCat && highest.topCat[0])
 			return getNewQuestion(highest.topCat);
 	}
-	if (!category || countInstances(lastThreeOnlyCats, category) >= 3) {
+
+	if (!category || countInstances(lastThreeOnlyCats, category) > 3) {
 		categories = getTopCats();
 		console.log(categories, "GET TOP CATS");
 		category = categories.length ? categories[0][0] : null;
+	}
+
+	if (!category) {
+		console.log("COUNTING ALL TRIGGERED CATEGORIES");
+		categories = aggregateCats();
+		categories = sortDictByVal(categories);
+		categories.forEach(function (elem) {
+			if (state.usedAggregateCats.indexOf(elem[0]) === -1 && !category) {
+				category = elem[0];
+				state.usedAggregateCats.push(category);
+			}
+		});
 	}
 	// console.log(category, "CATEGORY AFTER COUNT INSTANCES");
 	// 	// how do we pick new category
@@ -907,13 +936,17 @@ function updateState (question) {
 	console.log(state.questionsInCat, "CAT QUESTIONS");
 	if (state.currentCat === oldCat)
 		state.questionsInCat++;
-	else {
+	// else {
+	// 	state.inTransition = true;
+	// }
+	if (countInstances(state.usedCats.slice(-3), state.currentCat) === 3) {
+		console.log(state.inTransition, "CHECKING IN TRANSITION");
 		state.inTransition = true;
 	}
-	if (state.questionsInCat >= 2) {
+	if (state.questionsInCat > 2) {
 		state.questionsInCat = 0;
 		// state.currentCat = null;
-		state.inTransition = true;
+		// state.inTransition = true;
 	}
 }
 
@@ -1097,7 +1130,7 @@ function pickQuestion () {
 		// 	test = false;
 		// }
 		// if (test) {
-		// 	question = ["I want to hear about a dream that you had that feels important to you.","DREAM1a_T01_BEST","length","","DREAM1b_T01_BEST","belief","superlong","","freud","freudian","analysis","analyze","psychiatrist","shrink","psychologist","counseling","therapy","therapist","afraid","fears","fear","phobia","anxiety","worry","worried","anxious","",""];
+		// 	question = ["I want to hear about a dream that you had that feels important to you.","DREAM1a_T01_BEST","length","","DREAM1b_T01_BEST","belief","superlong","shortnod","freud","freudian","analysis","analyze","psychiatrist","shrink","psychologist","counseling","therapy","therapist","afraid","fears","fear","phobia","anxiety","worry","worried","anxious","",""];
 		// 	test = false;
 		// }
 		if (question) {
