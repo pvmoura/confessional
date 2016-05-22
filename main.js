@@ -44,6 +44,7 @@ var state = {
 	transcripts: [],
 	startTime: Date.now(),
 	semanticCats: ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'],
+	nonSemanticCats: ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'staller', 'followup', 'booth1', 'booth2', 'booth3', 'segue', 'verbalnod', 'encouragement', 'empathy', 'tellmemore', 'supersuperlong'],
 	hasIntroed: false,
 	hasWarmedUp: 0,
 	questionTimeStamps: [],
@@ -380,11 +381,13 @@ function getNonSemantic (options) {
 	} else {
 		state.hasWarmedUp++;
 		// if (timeSinceLastQuestion() > 25000 || state.questionsAsked.length > 3)
+
 		category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
+		cateogry = Date.now() % 3 === 0 ? 'warmup' : category;
 		// 	category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
 		// else
 		// 	category = 'warmup';
-		category = 'aboutyou';
+		// category = 'aboutyou';
 	}
 	filtered = utils.filterByCategory(category);
 	// filtered = utils.filterOutnotfirst(filtered);
@@ -409,6 +412,15 @@ function getPersonality (data) {
 	return utils.pickQuestionFromArray(filtered);
 }
 
+function removeDups (arr) {
+	var newArr = [];
+	arr.forEach(function (elem) {
+		if (newArr.indexOf(elem) === -1)
+			newArr.push(elem);
+	});
+	return newArr;
+}
+
 function getNewQuestion (category, memory) {
 	var filtered = utils.filterByCategory(category);
 	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
@@ -428,8 +440,8 @@ function getNewQuestion (category, memory) {
 		// console.log(filtered);
 
 		// console.log(filtered, "FILTERED AFTER GET NEW QUESTION");
-		if (filtered.length === 0)
-			state.usedCats = ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'];
+		// if (filtered.length === 0)
+			// state.usedCats = removeDups(state.usedCats);
 	}
 	// console.log('new question', filtered, state.questionsInCat);
 	return utils.pickQuestionFromArray(filtered);
@@ -539,7 +551,10 @@ function highestCatCount (answerData) {
 
 function sortByTopCatCount (answerData) {
 	answerData = answerData || state.answerData;
-	answerData.sort(function (a, b) {
+	var newArr = answerData.map(function (elem) {
+		return elem;
+	});
+	newArr.sort(function (a, b) {
 		var aCmp = a.topCat ? a.topCat[1] : -1;
 		var bCmp = b.topCat ? b.topCat[1] : -1;
 		if (aCmp > bCmp)
@@ -549,7 +564,7 @@ function sortByTopCatCount (answerData) {
 		else
 			return 0;
 	});
-	return answerData;
+	return newArr;
 }
 
 function sortByAnswerLength (answerData) {
@@ -570,7 +585,7 @@ function sortByAnswerLength (answerData) {
 function allCategoriesSorted (answerData) {
 	answerData = answerData || state.answerData;
 	var categories = [];
-	answerData.map(function (elem) {
+	answerData.forEach(function (elem) {
 		categories = consolidateArrs(categories, elem.categories);
 		console.log(categories, "CATEGORIES");
 	});
@@ -681,13 +696,25 @@ function getChildhoodInteractive () {
 	return utils.findQuestionByFilename("AFFECTEDYOUNG_T03_BEST");
 }
 
+function getTopCats (answerData) {
+	answerData = answerData || state.answerData;
+	var newAnswers = answerData.map(function (elem) {
+		return elem.topCat ? elem.topCat : null;
+	});
+	newAnswers = newAnswers.filter(function (elem) {
+		return elem && countInstances(state.usedCats, elem[0]) < 3;
+	});
+	newAnswers.sort(compForArrofArrs);
+	return newAnswers;
+}
+
 function getSemanticNew () {
 	// check if current answer data is stronger (i.e. a longer response, strong category, etc., eventually strong confidence level)
 	var category = state.semanticCats.indexOf(state.currentCat) !== -1 ? state.currentCat : null;
 	var sliceVal = state.answerData.length < 4 ? 0 : -4;
 	var lastThree = state.answerData.slice(sliceVal);
 	var lastThreeCats = lastThree.filter(function (elem) { return elem.categoryAsked === category; });
-	var lastThreeNonCat = lastThree.filter(function (elem) { return elem.categoryAsked !== category; });
+	var lastThreeNonCat = lastThree.filter(function (elem) { return elem.topCat ? elem.topCat[0] !== category : false; });
 	var maxNonCat = Math.max.apply(null, lastThreeNonCat.map(function (elem) {
 		return elem.topCat ? elem.topCat[1] : -1;
 	}));
@@ -729,51 +756,56 @@ function getSemanticNew () {
 		}
 	}
 	console.log(last, "LAST");
-	if (last && isOutlier([last])) {
-		category = last.topCat ? last.topCat[0] : null;
-	}
+	// if (last && isOutlier([last])) {
+	// 	category = last.topCat ? last.topCat[0] : null;
+	// }
 
-	if ((isOutlier(lastThreeNonCat) || maxNonCat > maxCat)) {
+	if ((isOutlier(lastThreeNonCat))) { // || maxNonCat > maxCat)) {
 		var highest = highestCatCount(lastThreeNonCat);
 		console.log(highest, "IN HIGHEST");
 		if (highest && highest.topCat && highest.topCat[0])
 			return getNewQuestion(highest.topCat);
 	}
 	if (!category || countInstances(lastThreeOnlyCats, category) >= 3) {
-		// how do we pick new category
-		// we look at the last 3 questions. if they've all been the same category
-		// then we want to pick a new one
-		// Also, if they've been very short responses, we probably want to pick a new one (shorter than average)
-		// If they've been 
-		var lastAnswer = state.answerData[state.answerData.length - 1];
-		var lastTopCat = lastAnswer && lastAnswer.topCat ? lastAnswer.topCat[0] : null;
-		if (state.answerData.length > 0 && lastTopCat && lastTopCat !== category) {
-			console.log("IN CATEGORY PICKING");
-			category = state.answerData[state.answerData.length - 1].topCat ? state.answerData[state.answerData.length - 1].topCat[0] : null;
-		// } else if (averageResponseLength(lastThree) > averageResponseLength()) 
-			// category = getNewCatBasedOnTopLengthAndCat(state.usedCats, lastThree);
-		} else
-			category = getNewCatBasedOnTopLengthAndCat(state.usedCats);
+		categories = getTopCats();
+		console.log(categories, "GET TOP CATS");
+		category = categories.length ? categories[0][0] : null;
 	}
-	console.log(category, 'cat after top length and cat');
-	if (!category) {
-		temp = getNewUnusedCategory();
-		category = temp ? temp[0] : null;
-	} 
-	// else if (countInstances(lastThreeOnlyCats, category) > 3) {
-	// 	// pick a new category
-	// 	console.log('in countInstances');
-	// 	temp = getNewUnusedCategory();
-	// 	category = temp ? temp[0] : null;
-	// } else if (lastThreeCats.length > 1 && (averageResponseLength(lastThreeCats) < averageResponseLength())) {
-	// 	console.log('in averageResponseLength');
-	// 	temp = getNewUnusedCategory();
-	// 	category = temp ? temp[0] : null;
+	// console.log(category, "CATEGORY AFTER COUNT INSTANCES");
+	// 	// how do we pick new category
+	// 	// we look at the last 3 questions. if they've all been the same category
+	// 	// then we want to pick a new one
+	// 	// Also, if they've been very short responses, we probably want to pick a new one (shorter than average)
+	// 	// If they've been 
+	// 	var lastAnswer = state.answerData[state.answerData.length - 1];
+	// 	var lastTopCat = lastAnswer && lastAnswer.topCat ? lastAnswer.topCat[0] : null;
+	// 	if (state.answerData.length > 0 && lastTopCat && lastTopCat !== category) {
+	// 		console.log("IN CATEGORY PICKING");
+	// 		category = state.answerData[state.answerData.length - 1].topCat ? state.answerData[state.answerData.length - 1].topCat[0] : null;
+	// 	// } else if (averageResponseLength(lastThree) > averageResponseLength()) 
+	// 		// category = getNewCatBasedOnTopLengthAndCat(state.usedCats, lastThree);
+	// 	} else
+	// 		category = getNewCatBasedOnTopLengthAndCat(state.usedCats);
 	// }
-	console.log(category, 'cat after if statement');
-	if (!category) {
-		category = pickRandomCat();
-	}
+	// console.log(category, 'cat after top length and cat');
+	// if (!category) {
+	// 	temp = getNewUnusedCategory();
+	// 	category = temp ? temp[0] : null;
+	// } 
+	// // else if (countInstances(lastThreeOnlyCats, category) > 3) {
+	// // 	// pick a new category
+	// // 	console.log('in countInstances');
+	// // 	temp = getNewUnusedCategory();
+	// // 	category = temp ? temp[0] : null;
+	// // } else if (lastThreeCats.length > 1 && (averageResponseLength(lastThreeCats) < averageResponseLength())) {
+	// // 	console.log('in averageResponseLength');
+	// // 	temp = getNewUnusedCategory();
+	// // 	category = temp ? temp[0] : null;
+	// // }
+	// console.log(category, 'cat after if statement');
+	// if (!category) {
+	// 	category = pickRandomCat();
+	// }
 	console.log('in new semantic, cat is', category, state.currentCat);
 	return getNewQuestion(category);
 
@@ -810,6 +842,7 @@ function consolidateArrs(orig, newArr) {
 }
 
 function findSemantic (question) {
+	console.log(question);
 	if (typeof question.slice !== 'function')
 		return null;
 	question = question.slice(5,8);
@@ -853,18 +886,23 @@ function updateState (question) {
 
 	state.nextCategory = [];
 	state.currTrans = [];
+	console.log(oldCat, "OLD CAT IS");
 	// semanticCat = findSemantic(question);
-	if (question && question[5]) {
-		state.currentCat = question[5];
-		state.usedCats.push(question[5]);
-	} else if (question && isFollowUp(question)) {
+	if (question && isFollowUp(question)) {
 		state.currentCat = oldCat;
 		state.usedCats.push(oldCat);
+	} else if (question && state.semanticCats.indexOf(question[5]) !== -1) {
+		state.currentCat = question[5];
+		state.usedCats.push(question[5]);
 	} else if (question && findSemantic(question)) {
 		state.currentCat = findSemantic(question);
 		state.usedCats.push(findSemantic(question));
+	} else if (question && state.nonSemanticCats.indexOf(question[5]) !== -1) {
+		state.currentCat = question[5];
+		state.usedCats.push(question[5]);
 	} else
 		state.currentCat = null;
+	console.log(state.currentCat, oldCat, state.usedCats, state.questionsInCat, "OLD CAT AND CURRENT CAT");
 	// console.log(oldCat, question[5]);
 	console.log(state.questionsInCat, "CAT QUESTIONS");
 	if (state.currentCat === oldCat)
