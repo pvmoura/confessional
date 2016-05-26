@@ -70,19 +70,26 @@ var state = {
 	currSpeaking: null,
 	answerData: [],
 	lastVerbalnod: null,
-	lastTellmemore: null,
+	notTellMeMore: null,
 	tellmemoreAsked: [],
 	overrideCat: null,
 	startedEnd: false,
 	supersuperlongs: [],
 	playedChildhoodInteractive: false,
 	playedVerbalNod: false,
-	usedAggregateCats: []
+	usedAggregateCats: [],
+	holdCat: false,
+	skipToNextCat: false
 };
 sd.on('ready', function (silenceThreshold) {
 	state.silenceThreshold = silenceThreshold;
 	sd.utils.dormantOn();
 	console.log("READY TO GO");
+	setInterval(function () {
+		console.log("CURRENT THRESHOLD:", state.silenceThreshold);
+		console.log("ELAPSED TIME:", (Date.now() - state.startTime) / 60000, "minutes");
+		console.log("TIME REMAINING:", ((state.startTime + state.interviewLength) - Date.now()) / 60000, "minutes");
+	}, 10000);
 	pickQuestion();
 });
 sd.on('resetThreshold', function (silenceThreshold) {
@@ -226,9 +233,23 @@ rl.on('line', function (cmd, key) {
   	state.overrideCat = 'sex';
   } else if (cmd === 'ran') {
   	state.overrideCat = pickRandomCat();
+  } else if (cmd === 'hc') {
+  	if (!state.holdCat) {
+  		console.log("holding category");
+  		state.holdCat = true;
+  	} else {
+  		console.log("holding cat OFF");
+  		state.holdCat = false;
+  	}
+  } else if (cmd === 'co') {
+  	console.log("PLAYING COCO");
+  	playQuestion(getCoCoName());
+  } else if (cmd === 'nc') {
+  	console.log("skipping to next category");
+  	state.skipToNextCat = true;
   } else if (!isNaN(Number(cmd))) {
   	sd.utils.setThreshold(Number(cmd));
-  }
+  } 
 });
 rl.on('error', function (err) {
 	console.log(err);
@@ -261,8 +282,12 @@ function playTellMeMore () {
 	console.log(filtered.length);
 	if (filtered.length === state.tellmemoreAsked.length)
 		state.tellmemoreAsked = [];
-	// if (state.lastTellmemore !== null)
-	// 	filtered = utils.filterOutByRegEx(new RegExp(state.lastTellmemore.slice(0,4)), filtered);
+	if (state.notTellMeMore === true) {
+		state.notTellMeMore = false;
+		filtered = utils.filterOutByRegEx(new RegExp("TELLMEMORE"), filtered);
+	}
+	else
+		state.notTellMeMore = true;
 	
 	console.log(filtered);
 	filtered = utils.filterOutAsked(state.tellmemoreAsked, filtered);
@@ -272,7 +297,7 @@ function playTellMeMore () {
 	if (question && question[1]) {
 		state.tellmemoreAsked.push(question[1]);
 		console.log(state.tellmemoreAsked);
-		state.lastTellmemore = question[1];
+		
 		player.play(audioDir + "/" + question[1] + ".wav", function (err) {
 			if (err) console.log("ERROR WHILE PLAYING");
 		});
@@ -356,13 +381,13 @@ function getFollowUp (options) {
 }
 
 function inIntro (timeDiff) {
-	if (timeDiff <= state.interviewLength / 5) {
+	// if (timeDiff <= state.interviewLength / 5) {
 		// if (state.hasWarmedUp > 2 || state.strongCat)
 		// 	return false;
 		// else
 		// 	return true;
-		if (state.hasWarmedUp <= 3)
-			return true;
+	if (state.hasWarmedUp <= 2) {
+		return true;
 	}
 	return false;
 	// return (timeDiff <= 60000 || state.hasWarmedUp <= 2);
@@ -374,23 +399,30 @@ function isShort() {
 
 function getNonSemantic (options) {
 	var possQuestions, category, filtered, question;
+	console.log(state.hasWarmedUp, "WARMED UP STATE");
 	if (!state.hasIntroed) {
 		state.hasIntroed = true;
 		category = 'intro';
 	} else if (state.hasWarmedUp === 0) {
 		state.hasWarmedUp++;
+		category = 'warmup';
+	} else if (state.hasWarmedUp === 1) {
+		state.hasWarmedUp++;
 		category = 'gettingwarmer';
 	} else {
 		state.hasWarmedUp++;
-		// if (timeSinceLastQuestion() > 25000 || state.questionsAsked.length > 3)
-
-		category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
-		cateogry = Date.now() % 3 === 0 ? 'warmup' : category;
-		// 	category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
-		// else
-		// 	category = 'warmup';
-		// category = 'aboutyou';
+		category = 'aboutyou';
 	}
+	// 	state.hasWarmedUp++;
+	// 	// if (timeSinceLastQuestion() > 25000 || state.questionsAsked.length > 3)
+
+	// 	category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
+	// 	cateogry = Date.now() % 3 === 0 ? 'warmup' : category;
+	// 	// 	category = Date.now() % 2 === 0 ? 'gettingwarmer' : 'aboutyou';
+	// 	// else
+	// 	// 	category = 'warmup';
+	// 	// category = 'aboutyou';
+	// }
 	filtered = utils.filterByCategory(category);
 	// filtered = utils.filterOutnotfirst(filtered);
 	// console.log(filtered, 'heree', category);
@@ -401,15 +433,15 @@ function getNonSemantic (options) {
 }
 
 function getPersonality (data) {
-	var booths = ['booth1'], booth, filtered;
-	if (data.timeDiff >= 600000)
-		booths.push('booth2');
-	if (data.timeDiff >= 900000) {
-		booths.push('booth3');
-		booths.shift();
-	}
-	booth = utils.pickQuestionFromArray(booths);
-	filtered = utils['filterBy' + booth]();
+	// var booths = ['booth1'], booth, filtered;
+	// if (data.timeDiff >= 600000)
+	// 	booths.push('booth2');
+	// if (data.timeDiff >= 900000) {
+	// 	booths.push('booth3');
+	// 	booths.shift();
+	// }
+	// booth = utils.pickQuestionFromArray(booths);
+	var filtered = utils['filterBybooth3']();
 	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
 	return utils.pickQuestionFromArray(filtered);
 }
@@ -512,6 +544,10 @@ function aggregateAnswerData (categoryAsked, questionOrder, question, arr) {
 	sorted = sorted.filter(function (elem) {
 		return elem[0] !== 'zzzzzz';
 	});
+	if (sorted.length === 0 && state.hasWarmedUp >= 2) {
+		console.log("NO CATEGORIES TRIGGERED SO DOCKING 5 MINUTES");
+		state.interviewLength -= 300000;
+	}
 	answerData.question = question[1];
 	answerData.speakingLength = state.currSpeaking;
 	answerData.silenceLength = state.currSilence;
@@ -698,6 +734,10 @@ function getChildhoodInteractive () {
 	return utils.findQuestionByFilename("AFFECTEDYOUNG_T03_BEST");
 }
 
+function getCoCoName () {
+	return utils.findQuestionByFilename("COCO_T03_BEST");
+}
+
 function getTopCats (answerData) {
 	answerData = answerData || state.answerData;
 	var newAnswers = answerData.map(function (elem) {
@@ -726,6 +766,10 @@ function aggregateCats (answerData) {
 function getSemanticNew () {
 	// check if current answer data is stronger (i.e. a longer response, strong category, etc., eventually strong confidence level)
 	var category = state.semanticCats.indexOf(state.currentCat) !== -1 ? state.currentCat : null;
+	if (state.holdCat && category)
+		return category;
+	if (state.inTransition)
+		cateogry = null;
 	var sliceVal = state.answerData.length < 4 ? 0 : -4;
 	var lastThree = state.answerData.slice(sliceVal);
 	var lastThreeCats = lastThree.filter(function (elem) { return elem.categoryAsked === category; });
@@ -776,14 +820,14 @@ function getSemanticNew () {
 	// 	category = last.topCat ? last.topCat[0] : null;
 	// }
 
-	if ((isOutlier(lastThreeNonCat))) { // || maxNonCat > maxCat)) {
-		var highest = highestCatCount(lastThreeNonCat);
-		console.log(highest, "IN HIGHEST");
-		if (highest && highest.topCat && highest.topCat[0])
-			return getNewQuestion(highest.topCat);
-	}
+	// if ((isOutlier(lastThreeNonCat))) { // || maxNonCat > maxCat)) {
+	// 	var highest = highestCatCount(lastThreeNonCat);
+	// 	console.log(highest, "IN HIGHEST");
+	// 	if (highest && highest.topCat && highest.topCat[0])
+	// 		return getNewQuestion(highest.topCat);
+	// }
 
-	if (!category || countInstances(lastThreeOnlyCats, category) > 3) {
+	if (!category || state.questionsInCat >= 3 || state.skipToNextCat /*countInstances(lastThreeOnlyCats, category) > 5*/) {
 		categories = getTopCats();
 		console.log(categories, "GET TOP CATS");
 		category = categories.length ? categories[0][0] : null;
@@ -934,17 +978,19 @@ function updateState (question) {
 	console.log(state.currentCat, oldCat, state.usedCats, state.questionsInCat, "OLD CAT AND CURRENT CAT");
 	// console.log(oldCat, question[5]);
 	console.log(state.questionsInCat, "CAT QUESTIONS");
-	if (state.currentCat === oldCat)
+	if (state.currentCat === oldCat && !isFollowUp(question))
 		state.questionsInCat++;
 	// else {
 	// 	state.inTransition = true;
 	// }
-	if (countInstances(state.usedCats.slice(-3), state.currentCat) === 3) {
+	// if (countInstances(state.usedCats.slice(-3), state.currentCat) === 3) {
+	// 	console.log(state.inTransition, "CHECKING IN TRANSITION");
+	// 	state.inTransition = true;
+	// }
+	if (state.questionsInCat >= 3) {
+		state.questionsInCat = 0;
 		console.log(state.inTransition, "CHECKING IN TRANSITION");
 		state.inTransition = true;
-	}
-	if (state.questionsInCat > 2) {
-		state.questionsInCat = 0;
 		// state.currentCat = null;
 		// state.inTransition = true;
 	}
@@ -1043,11 +1089,20 @@ function getDiff (start) {
 function boothQuestion () {
 	// if (Date.now() - state.startTime <= 1000*60*10)
 	// 	state.inTransition = false;
-	if (Date.now() - state.startTime <= 1000*60*10)
+	if (Date.now() - state.startTime <= 1000*60*15)
 		return false;
+	if (state.inTransition && state.boothQuestions < 1)
+		return Date.now() % 2 === 0;
 	return state.inTransition && state.boothQuestions < 2 && Date.now() % state.boothQuestions === 0;
 }
 
+function updateMood () {
+	var averageResponse = averageResponseLength();
+	if (averageResponse < 15000 && state.hasWarmedUp >= 2)
+		state.interviewLength -= 5;
+	else if (averageResponse > 60000)
+		state.interviewLength += 5;
+}
 test = false;
 function pickQuestion () {
 	// return;
