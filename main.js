@@ -79,7 +79,8 @@ var state = {
 	playedVerbalNod: false,
 	usedAggregateCats: [],
 	holdCat: false,
-	skipToNextCat: false
+	skipToNextCat: false,
+	noBooths: true
 };
 sd.on('ready', function (silenceThreshold) {
 	state.silenceThreshold = silenceThreshold;
@@ -289,7 +290,7 @@ function playTellMeMore () {
 	else
 		state.notTellMeMore = true;
 	
-	console.log(filtered);
+	// console.log(filtered);
 	filtered = utils.filterOutAsked(state.tellmemoreAsked, filtered);
 
 	question = utils.pickQuestionFromArray(filtered);
@@ -442,6 +443,7 @@ function getPersonality (data) {
 	// }
 	// booth = utils.pickQuestionFromArray(booths);
 	var filtered = utils['filterBybooth3']();
+	state.noBooths = false;
 	filtered = utils.filterOutAsked(state.questionsAsked, filtered);
 	return utils.pickQuestionFromArray(filtered);
 }
@@ -544,10 +546,6 @@ function aggregateAnswerData (categoryAsked, questionOrder, question, arr) {
 	sorted = sorted.filter(function (elem) {
 		return elem[0] !== 'zzzzzz';
 	});
-	if (sorted.length === 0 && state.hasWarmedUp >= 2) {
-		console.log("NO CATEGORIES TRIGGERED SO DOCKING 5 MINUTES");
-		state.interviewLength -= 300000;
-	}
 	answerData.question = question[1];
 	answerData.speakingLength = state.currSpeaking;
 	answerData.silenceLength = state.currSilence;
@@ -767,7 +765,11 @@ function getSemanticNew () {
 	// check if current answer data is stronger (i.e. a longer response, strong category, etc., eventually strong confidence level)
 	var category = state.semanticCats.indexOf(state.currentCat) !== -1 ? state.currentCat : null;
 	if (state.holdCat && category)
-		return category;
+		return getNewQuestion(category);
+	else if (state.holdCat && !category) {
+		state.holdCat = false;
+		console.log("NO CATEGORY SO TURNING OFF CATEGORY HOLD");
+	}
 	if (state.inTransition)
 		cateogry = null;
 	var sliceVal = state.answerData.length < 4 ? 0 : -4;
@@ -829,6 +831,9 @@ function getSemanticNew () {
 
 	if (!category || state.questionsInCat >= 3 || state.skipToNextCat /*countInstances(lastThreeOnlyCats, category) > 5*/) {
 		categories = getTopCats();
+		if (state.questionsInCat >= 3) {
+			state.questionsInCat = 0;
+		}
 		console.log(categories, "GET TOP CATS");
 		category = categories.length ? categories[0][0] : null;
 	}
@@ -961,7 +966,10 @@ function updateState (question) {
 	state.currTrans = [];
 	console.log(oldCat, "OLD CAT IS");
 	// semanticCat = findSemantic(question);
-	if (question && isFollowUp(question)) {
+	if (state.holdCat && state.currentCat) {
+		console.log("Holding cat", state.currentCat);
+		state.usedCats.push(state.currentCat);
+	} else if (question && isFollowUp(question)) {
 		state.currentCat = oldCat;
 		state.usedCats.push(oldCat);
 	} else if (question && state.semanticCats.indexOf(question[5]) !== -1) {
@@ -987,8 +995,8 @@ function updateState (question) {
 	// 	console.log(state.inTransition, "CHECKING IN TRANSITION");
 	// 	state.inTransition = true;
 	// }
-	if (state.questionsInCat >= 3) {
-		state.questionsInCat = 0;
+	if (state.questionsInCat >= 3 && !state.holdCat) {
+		// state.questionsInCat = 0;
 		console.log(state.inTransition, "CHECKING IN TRANSITION");
 		state.inTransition = true;
 		// state.currentCat = null;
@@ -1089,19 +1097,22 @@ function getDiff (start) {
 function boothQuestion () {
 	// if (Date.now() - state.startTime <= 1000*60*10)
 	// 	state.inTransition = false;
-	if (Date.now() - state.startTime <= 1000*60*15)
+	if (Date.now() - state.startTime <= 1000 * 60 * 15)
 		return false;
-	if (state.inTransition && state.boothQuestions < 1)
+	if (state.inTransition && state.boothQuestions < 1 && state.noBooths)
 		return Date.now() % 2 === 0;
 	return state.inTransition && state.boothQuestions < 2 && Date.now() % state.boothQuestions === 0;
 }
 
 function updateMood () {
 	var averageResponse = averageResponseLength();
-	if (averageResponse < 15000 && state.hasWarmedUp >= 2)
-		state.interviewLength -= 5;
-	else if (averageResponse > 60000)
-		state.interviewLength += 5;
+	if (averageResponse < 15000 && state.hasWarmedUp >= 2) {
+		console.log("AVERAGE RESPONSE LENGTH LESS THAN 15 SECONDS, DOCKING 5 MINUTES");
+		state.interviewLength -= 5 * 1000 * 60;
+	} else if (averageResponse > 60000) {
+		console.log("AVERAGE RESPONSE LENGTH MORE THAN 1 MINUTE, ADDING 5 MINUTES");
+		state.interviewLength += 5 * 1000 * 60;
+	}
 }
 test = false;
 function pickQuestion () {
@@ -1143,6 +1154,13 @@ function pickQuestion () {
 				state.boothQuestions++;
 				action = actions['booth'];
 			} else {
+				// updateMood();
+				if (answerData) {
+					if (answerData.categories && answerData.categories.length === 0) {
+						console.log("NO CATEGORIES TRIGGERED SO DOCKING 1.5 MINUTES");
+						state.interviewLength -= 90000;
+					}
+				}
 				console.log('semantic');
 				action = actions['semantic'];
 			}
