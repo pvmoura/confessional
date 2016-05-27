@@ -71,6 +71,12 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 					return true;
 			}, qs);
 		},
+		filterOutByFileRegEx: function (regex, qs) {
+			return generalFilter(function (q) {
+				if(q[1].match(regex) === null)
+					return true;	
+			}, qs);
+		},
 		pickQuestionFromArray: function (qs) {
 			qs = qs || questions;
 			return qs[parseInt(Math.random()*qs.length, 10)];
