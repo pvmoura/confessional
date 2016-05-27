@@ -1,13 +1,13 @@
 var execFile = require('child_process').execFile;
 var EE = require('events');
 var duration = 3500, dormant = false, hold = false, silencePeriods = [],
-	speakingPeriods = [], startTime, holdingPeriod = null, customWait = null, defaultDuration = null;
+	speakingPeriods = [], startTime, holdingPeriod = null, customWait = null, defaultDuration = null, globalIntervals = [];
 module.exports = new EE();
 
 function getDuration (holdingPeriod, customWait, defaultDuration) {
 	var now = Date.now(), newDuration = defaultDuration;
 	// console.log(speakingPeriods, silencePeriods);
-	console.log(now, startTime, now - startTime);
+	// console.log(now, startTime, now - startTime);
 	if (now - startTime <= holdingPeriod) {
 		if (speakingPeriods.length === 0)	
 			newDuration = holdingPeriod;
@@ -17,6 +17,12 @@ function getDuration (holdingPeriod, customWait, defaultDuration) {
 		}
 	}
 	return newDuration;
+}
+function globalClearIntervals () {
+	globalIntervals.forEach(function (interval) {
+		clearInterval(interval);
+	});
+	globalIntervals = [];
 }
 
 function createDetector (threshold, reset) {
@@ -70,6 +76,7 @@ function createDetector (threshold, reset) {
 							}
 						}, duration / 2);
 						intervals.push(interval);
+						globalIntervals.push(interval);
 						// console.log(intervals, "INTERVALS ARE");
 					}
 				} else {
@@ -189,6 +196,12 @@ module.exports.utils = {
 			this.customWait = options.customWait;
 			this.defaultDuration = options.defaultDuration;
 		}
+	},
+	forceSilence: function () {
+		module.exports.emit('silencePeriod', { silences: silencePeriods, speaking: speakingPeriods });
+		globalClearIntervals();
+		silencePeriods = [];
+		speakingPeriods = [];
 	}
 };
 
