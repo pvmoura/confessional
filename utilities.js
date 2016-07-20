@@ -19,6 +19,15 @@ var average = function (arr) {
 	return arr.length > 0 ? sum(arr) / arr.length : null;
 };
 
+var median = function (arr, sorted) {
+	if (sorted !== true) {
+		arr = arr.filter(function (elem) {
+			return typeof elem !== 'object' && !isNaN(elem);
+		});
+		arr.sort();
+	}
+	return arr.length > 0 ? arr[Math.floor(arr.length / 2)] : null;
+};
 
 var compForArrofArrs = function (sortKey) {
 	if (typeof sortKey === 'undefined')
@@ -124,5 +133,6 @@ module.exports = {
 	count: count,
 	consolidateArrs: consolidateArrs,
 	countInstances: countInstances,
-	standardDeviation: standardDeviation
+	standardDeviation: standardDeviation,
+	median: median
 }

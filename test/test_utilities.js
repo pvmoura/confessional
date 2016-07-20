@@ -182,4 +182,23 @@ describe("utilities", function () {
 			}
 		});
 	});
+	describe("#median", function () {
+		it("should correctly get the median from a list of numbers", function () {
+			var a = [10, 8, 10, 8, 8, 4];
+			assert.equal(utils.median(a), 8);
+			a = [51, 3, 2, 1, 5];
+			assert.equal(utils.median(a), 3);
+		});
+		it("should return null if given an empty list", function () {
+			assert.equal(utils.median([]), null);
+		});
+		it("should filter out non numbers", function () {
+			var a = [{}, [], "asdf", 1, 2, 4];
+			assert.equal(utils.median(a), 2);
+		});
+		it("should return null in a nonempty list that contains no numbers", function () {
+			var a = ["asdf", [], [1,2,3]];
+			assert.equal(utils.median(a), null);
+		});
+	});
 });
