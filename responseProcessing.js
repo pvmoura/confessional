@@ -24,6 +24,7 @@ var addResponse = function (responseData, qid, category, order) {
 			speaking: [],
 			sortedCats: [],
 			transcript: null,
+			confidence: null,
 			partials: [],
 			askedCat: category,
 			order: order,
@@ -148,7 +149,6 @@ var sortByVal = function (responseData, values, asc) {
 				result = 1;
 			else if (values.length > 1) {
 				aSec = getVal(a[values[1]]), bSec = getVal(b[values[1]]);
-				console.log(aSec, bSec, "SECOND VALUE");
 				if (aSec > bSec)
 					result = -1;
 				else if (aSec < bSec)
@@ -178,6 +178,15 @@ var consolidateCats = function (responseData) {
 	}, responseData);
 };
 
+var rank = function (responseData, responseId, rankBy) {
+	var sorted = sortByVal(responseData, rankBy);
+	for (var i = 0, len = sorted.length; i < len; i++) {
+		if (sorted[i].id === responseId)
+			return i;
+	}
+	return null;
+};
+
 module.exports = {
 	addResponse: addResponse,
 	updateSounds: updateSounds,
@@ -188,5 +197,6 @@ module.exports = {
 	sortByVal: sortByVal,
 	largestValue: largestValue,
 	smallestValue: smallestValue,
-	consolidateCats: consolidateCats
+	consolidateCats: consolidateCats,
+	rank: rank
 }

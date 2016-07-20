@@ -13,7 +13,7 @@ describe("responseProcessing", function () {
 	describe("#addResponse", function () {
 		it("should create a new response object in the data object", function () {
 			var responseData = rp.addResponse({}, "HELLO1a_T01", "intro", 0);
-			assert.deepEqual(responseData, { HELLO1a_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" }});
+			assert.deepEqual(responseData, { HELLO1a_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, confidence: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" }});
 		});
 		it("should throw an error if not given a qid", function () {
 			try {
@@ -24,9 +24,9 @@ describe("responseProcessing", function () {
 		});
 		it("should keep track of old additions", function () {
 			var responseData = rp.addResponse({}, "HELLO1a_T01", "intro", 0);
-			assert.deepEqual(responseData,  { HELLO1a_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" }});
+			assert.deepEqual(responseData,  { HELLO1a_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, confidence: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" }});
 			responseData = rp.addResponse(responseData, "HELLO1b_T01", "followup", 1);
-			assert.deepEqual(responseData, { HELLO1a_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" }, HELLO1b_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silences: [], speaking: [], sortedCats: [], transcript: null, partials: [], silenceStandardDeviation: null, askedCat: "followup", order: 1, id: "HELLO1b_T01" }});
+			assert.deepEqual(responseData, { HELLO1a_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, confidence: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" }, HELLO1b_T01: { categories: {}, speakingLength: null, silenceLength: null, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: null, silences: [], speaking: [], sortedCats: [], transcript: null, confidence: null, partials: [], silenceStandardDeviation: null, askedCat: "followup", order: 1, id: "HELLO1b_T01" }});
 		});
 	});
 	describe("#updateResponseCategory", function () {
@@ -78,7 +78,7 @@ describe("responseProcessing", function () {
 			var sounds = { speaking: [], silences: [] };
 			var responseData = rp.addResponse({}, "HELLO1a_T01", "intro", 0);
 			responseData = rp.updateSounds(responseData, "HELLO1a_T01", sounds);
-			assert.deepEqual(responseData["HELLO1a_T01"], { categories: {}, speakingLength: 0, silenceLength: 0, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: [], silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" });
+			assert.deepEqual(responseData["HELLO1a_T01"], { categories: {}, speakingLength: 0, silenceLength: 0, firstSilence: null, averageSilence: null, longestSilence: null, longestThreeSilences: [], silenceStandardDeviation: null, silences: [], speaking: [], sortedCats: [], transcript: null, confidence: null, partials: [], askedCat: "intro", order: 0, id: "HELLO1a_T01" });
 		});
 		it("should throw an error if the response isn't in the object", function () {
 			try {
@@ -357,6 +357,35 @@ describe("responseProcessing", function () {
 		});
 		it("should return an empty array with no categories", function () {
 			assert.deepEqual(rp.consolidateCats(testData), []);
+		});
+	});
+	describe("#rank", function () {
+		it("should return the right ranking", function () {
+			var responseData = simpleDeepCopy(testData);
+			responseData = rp.updateResponseCategory(responseData, "HELLO1a_T01", "love");
+			responseData = rp.updateResponseCategory(responseData, "HELLO1a_T01", "love");
+			responseData = rp.updateResponseCategory(responseData, "HELLO1c_T01", "sex");
+			assert.equal(rp.rank(responseData, "HELLO1a_T01", ["sortedCats"]), 0);
+			assert.equal(rp.rank(responseData, "HELLO1c_T01", ["sortedCats"]), 1);
+			assert.equal(rp.rank(responseData, "HELLO1b_T01", ["sortedCats"]), 2);
+		});
+		it("should return null if not given a responseId in the object", function () {
+			var responseData = simpleDeepCopy(testData);
+			responseData = rp.updateResponseCategory(responseData, "HELLO1a_T01", "love");
+			assert.equal(rp.rank(responseData, "NOTPRESENT", ["sortedCats"]), null);
+		});
+		it("should return the rank in a multi-value sort", function () {
+			var responseData = simpleDeepCopy(testData);
+			responseData = rp.updateSounds(responseData, "HELLO1a_T01", { speaking: [0, 200, 300], silences: [] });
+			responseData = rp.updateSounds(responseData, "HELLO1b_T01", { speaking: [100, 101, 10000], silences: [] });
+			responseData = rp.updateSounds(responseData, "HELLO1c_T01", { speaking: [700, 800, 850], silences: [] });
+			responseData = rp.updateResponseCategory(responseData, "HELLO1a_T01", "love");
+			responseData = rp.updateResponseCategory(responseData, "HELLO1b_T01", "sex");
+			responseData = rp.updateResponseCategory(responseData, "HELLO1c_T01", "belief");
+			responseData = rp.updateResponseCategory(responseData, "HELLO1c_T01", "belief");
+			assert.equal(rp.rank(responseData, "HELLO1a_T01", ["sortedCats", "speakingLength"]), 2);
+			assert.equal(rp.rank(responseData, "HELLO1b_T01", ["sortedCats", "speakingLength"]), 1);
+			assert.equal(rp.rank(responseData, "HELLO1c_T01", ["sortedCats", "speakingLength"]), 0);
 		});
 	});
 });
