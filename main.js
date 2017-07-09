@@ -41,6 +41,13 @@ sd.on('halfSilence', function () {
 
 sd.utils.start();
 
+function getDiff (start) {
+	start = start || state.startTime;
+	return Date.now() - start;
+}
+
+
+
 var state = {
 	transcripts: [],
 	startTime: Date.now(),
