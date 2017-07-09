@@ -5,7 +5,8 @@ describe("Question Utilities", function () {
 	var categories = ['intro', 'notfirst', 'booth1', 'childhood', 'sex'],
 		nonSemanticCats = ['intro', 'notfirst', 'booth1'],
 		utils = qu.questionUtils(categories, nonSemanticCats),
-		testList = utils.allQuestions().slice(50);
+		testList = utils.allQuestions().slice(50),
+		qutils = qu.questionUtils();
 
 	function generalTest(filterFun, feature, checkFun, given) {
 		var list = given ? testList : undefined;
@@ -104,5 +105,45 @@ describe("Question Utilities", function () {
 		it('filters given list by each category', function () {
 
 		});
+	});
+	describe("#findStartOfChain", function () {
+		it("finds the start of a chain", function () {
+			var followup = "ASKFORHELP1b_T02_BEST";
+			var start = qutils.findStartOfChain(qutils.findQuestionByFilename(followup));
+			assert.equal(start[1], "ASKFORHELP1a_T01_BEST");
+		});
+		it("finds the start of a chain a few levels deep", function () {
+			var followup = "HELLO1c_T03_BEST";
+			var start = qutils.findStartOfChain(qutils.findQuestionByFilename(followup));
+			// console.log(start, "START IS HERE");
+			assert.equal(start[1], "HELLO1a_T04_BEST");
+		})
+		it("returns null if there is no start", function () {
+			var start = qutils.findStartOfChain(qutils.findQuestionByFilename("DANCEMOVES1a_T03_BEST"));
+			assert.equal(start[1], "DANCEMOVES1a_T03_BEST");
+		});
+	});
+	describe("#findSemanticCategory", function () {
+		it("finds the right semantic category", function () {
+			var question = qutils.findQuestionByFilename("HEARTBROKEN1a_T02_BEST");
+			assert.equal(qutils.findSemanticCategory(question), "love");
+		});
+		it("returns null if no semantic category is present", function () {
+			var question = qutils.findQuestionByFilename("HEARTBROKEN1b_T02_BEST");
+			assert.equal(qutils.findSemanticCategory(question), null);
+		});
+	});
+	describe("#hasCategory", function () {
+		it("returns true if a question has the given category", function () {
+			var question = qutils.findQuestionByFilename("HEALTHSCARE1b_T01_BEST");			
+			assert.equal(qutils.hasCategory(question, "supersuperlong"), true);
+			question = qutils.findQuestionByFilename("HURTSOMEONE1b_T01_BEST");
+			assert.equal(qutils.hasCategory(question, "followup"), true);
+		});
+		it("returns false if a question does NOT have the given category", function () {
+			var question = qutils.findQuestionByFilename("INSECURESEX1a_T02_BEST");
+			assert.equal(qutils.hasCategory(question, "love"), false);
+		});
+
 	});
 });

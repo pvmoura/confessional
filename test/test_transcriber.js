@@ -49,6 +49,9 @@ describe("transcriber", function () {
 		it("should start transcription", function (done) {
 			// transcriberObj = null;
 			var t = transcriber.createTranscriber(options, function (err, data) {
+				if (err) {
+					throw new Error(err.toString());
+				}
 				var alternatives = data.results[0].alternatives[0];
 				console.log(data.results[0].alternatives[0]);
 				assert.equal(alternatives.transcript, 'what do you wish your parents had done differently when you were growing up ');
