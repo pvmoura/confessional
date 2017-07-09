@@ -6,7 +6,7 @@ var audioDir = process.env.audioDir;
 
 module.exports = new EE();
 
-module.exports.questionUtils = function (categories, nonSemanticCats) {
+module.exports.questionUtils = function (semanticCats, nonSemanticCats, excludeCats) {
 	if (typeof csvPath === 'undefined' || csvPath === "") {
 		module.exports.emit('error', { message: "Undefined CSV path" });
 		return;
@@ -15,8 +15,9 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 		module.exports.emit('error', { message: "Undefined audio directory" });
 		return;
 	}
-	categories = categories || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'escapehatch', 'booth1', 'booth2', 'booth3', 'notfirst', 'belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'];
-	nonSemanticCats = nonSemanticCats || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'staller', 'followup', 'booth1', 'booth2', 'booth3', 'segue', 'verbalnod', 'encouragement', 'empathy', 'tellmemore'];
+	semanticCats = semanticCats || ['belief', 'childhood', 'hurt', 'love', 'secret', 'sex', 'worry', 'wrong'];
+	nonSemanticCats = nonSemanticCats || ['intro', 'warmup', 'gettingwarmer', 'aboutyou', 'escapehatch', 'notfirst', 'staller', 'followup', 'booth1', 'booth2', 'booth3', 'segue', 'verbalnod', 'encouragement', 'empathy', 'tellmemore', 'supersuperlong', 'shortnod'];
+	excludeCats = excludeCats || [];
 
 	var questions = [], that = this, utils;
 
@@ -33,7 +34,7 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 				if (questions.filter(function (elem) { return data[1] === elem[1]; }).length === 0)
 					questions.push(data);
 				else
-					console.log(data[1]);
+					console.log(data[1], "THIS IS A DUPLICATE");
 			});
 			reader.on('error', function (err) {
 				module.exports.emit('error', err);
@@ -41,6 +42,7 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 			reader.on('end', function() {
 				console.log("questions read in", questions.length);
 				questions = utils.filterByAudioFiles();
+				questions = utils.filterOutExcluded()
 				module.exports.emit('ready', questions);
 			});
 		},
@@ -51,6 +53,15 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 			});
 			return generalFilter(function (elem) {
 				return audioFiles.indexOf(elem[1].toLowerCase() + '.wav') !== -1;
+			});
+		},
+		filterOutExcluded: function () {
+			return generalFilter(function (elem) {
+				for (var i = 0, len = excludeCats.length; i < len; i++) {
+					if (elem.indexOf(excludeCats[i]) !== -1)
+						return false;
+				}
+				return true;
 			});
 		},
 		filterByCategory: function (cat, qs) {
@@ -92,7 +103,6 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 			var filtered = generalFilter(function (elem) {
 				return elem[1] === filename;
 			}, qs);
-			console.log(filtered, filename);
 			return filtered.length > 0 ? filtered[0] : null;
 		},
 		filterOutAsked: function (asked, qs) {
@@ -102,10 +112,33 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 		},
 		allQuestions: function () {
 			return questions;
+		},
+		hasCategory: function (question, category) {
+			if (!question || typeof question.indexOf === 'undefined')
+				return false;
+			return question.indexOf(category) !== -1;
+		},
+		findSemanticCategory: function (question) {
+			if (!question || typeof question.slice === 'undefined')
+				return null;
+			for (var i = 0, len = semanticCats.length; i < len; i++) {
+				if (question.slice(5,8).indexOf(semanticCats[i]) !== -1)
+					return semanticCats[i];
+			}
+			return null;
+		},
+		findStartOfChain: function (question) {
+			var qs;
+			while (question && question.indexOf('followup') !== -1) {
+				qs = questions.filter(function (elem) {
+					return elem.slice(2,5).indexOf(question[1]) !== -1;
+				});
+				question = qs.length ? qs[0] : null;
+			}
+			return question;
 		}
-
 	};
-	categories.map(function (cat) {
+	semanticCats.forEach(function (cat) {
 		utils['filterOut' + cat] = function (qs) {
 			return generalFilter(function (elem) {
 				return elem.slice(5,8).indexOf(cat) === -1;
@@ -118,7 +151,7 @@ module.exports.questionUtils = function (categories, nonSemanticCats) {
 			}, qs);
 		};
 	});
-	nonSemanticCats.map(function (cat) {
+	nonSemanticCats.forEach(function (cat) {
 		utils['filterOut' + cat] = function (qs) {
 			return generalFilter(function (elem) {
 				return elem.slice(5,8).indexOf(cat) === -1;
